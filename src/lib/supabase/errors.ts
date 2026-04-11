@@ -29,6 +29,19 @@ export function isMissingColumnError(error: unknown, table: string, column: stri
   );
 }
 
+export function isStatementTimeoutError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const maybeError = error as PostgrestLikeError;
+  const message = (maybeError.message ?? "").toLowerCase();
+
+  return (
+    maybeError.code === "57014" ||
+    message.includes("statement timeout") ||
+    message.includes("canceling statement")
+  );
+}
+
 export function toDbError(error: unknown, fallback: string, table?: string) {
   if (table && isMissingTableError(error, table)) {
     return new Error(SCHEMA_HINT);

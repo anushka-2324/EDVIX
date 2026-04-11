@@ -27,6 +27,13 @@ type PostgrestLikeError = {
   hint?: string | null;
 };
 
+function isValidCollegeEmail(email?: string) {
+  const normalized = (email ?? "").trim().toLowerCase();
+  const parts = normalized.split("@");
+
+  return parts.length === 2 && parts[0].length > 0 && parts[1] === "jspm.edu.in";
+}
+
 function buildFallbackProfile(user: SupabaseAuthUser): UserProfile {
   const metadata = user.user_metadata ?? {};
 
@@ -54,6 +61,11 @@ export async function getAuthContext(): Promise<AuthContext> {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    return { supabase, user: null, profile: null };
+  }
+
+  if (!isValidCollegeEmail(user.email)) {
+    await supabase.auth.signOut();
     return { supabase, user: null, profile: null };
   }
 

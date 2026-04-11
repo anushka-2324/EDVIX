@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, Bell, Bus, CarFront, QrCode, TriangleAlert, Users } from "lucide-react";
 import { QrScannerCard } from "@/components/attendance/qr-scanner-card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,10 @@ import { getDashboardSummary } from "@/services/dashboard";
 
 export default async function DashboardPage() {
   const { profile, supabase, user } = await requireUser();
+
+  if (profile.role === "bus_driver") {
+    redirect("/driver");
+  }
 
   const [summary, alerts, classes] = await Promise.all([
     getDashboardSummary(supabase, user.id, profile.role),

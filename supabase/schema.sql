@@ -7,9 +7,13 @@ create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   email text not null unique,
-  role text not null check (role in ('student', 'faculty', 'admin')),
+  role text not null check (role in ('student', 'faculty', 'admin', 'bus_driver')),
   created_at timestamptz not null default now()
 );
+
+alter table public.users drop constraint if exists users_role_check;
+alter table public.users add constraint users_role_check
+check (role in ('student', 'faculty', 'admin', 'bus_driver'));
 
 create table if not exists public.classes (
   id uuid primary key default gen_random_uuid(),
@@ -77,8 +81,37 @@ create table if not exists public.buses (
   name text not null unique,
   lat double precision not null,
   lng double precision not null,
+  pickup_area text,
+  pickup_source text check (pickup_source in ('college', 'school')),
+  driver_id uuid references public.users(id) on delete set null,
   updated_at timestamptz not null default now()
 );
+
+alter table public.buses add column if not exists pickup_area text;
+alter table public.buses add column if not exists pickup_source text;
+alter table public.buses drop constraint if exists buses_pickup_source_check;
+alter table public.buses add constraint buses_pickup_source_check
+check (pickup_source in ('college', 'school'));
+alter table public.buses add column if not exists driver_id uuid references public.users(id) on delete set null;
+
+create table if not exists public.transport_preferences (
+  user_id uuid primary key references public.users(id) on delete cascade,
+  preferred_bus_id uuid references public.buses(id) on delete set null,
+  preferred_area text,
+  preferred_source text check (preferred_source in ('college', 'school')),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.transport_preferences add column if not exists preferred_bus_id uuid references public.buses(id) on delete set null;
+alter table public.transport_preferences add column if not exists preferred_area text;
+alter table public.transport_preferences add column if not exists preferred_source text;
+alter table public.transport_preferences drop constraint if exists transport_preferences_preferred_source_check;
+alter table public.transport_preferences add constraint transport_preferences_preferred_source_check
+check (preferred_source in ('college', 'school'));
+alter table public.transport_preferences add column if not exists updated_at timestamptz;
+update public.transport_preferences set updated_at = now() where updated_at is null;
+alter table public.transport_preferences alter column updated_at set default now();
+alter table public.transport_preferences alter column updated_at set not null;
 
 create table if not exists public.alerts (
   id uuid primary key default gen_random_uuid(),
@@ -121,8 +154,21 @@ create or replace function public.current_user_role()
 returns text
 language sql
 stable
+security definer
+set search_path = public
 as $$
-  select role from public.users where id = auth.uid();
+  select role from public.users where id = auth.uid() limit 1;
+$$;
+
+create or replace function public.is_valid_college_email(email_input text)
+returns boolean
+language sql
+immutable
+as $$
+  select
+    array_length(string_to_array(lower(trim(email_input)), '@'), 1) = 2
+    and split_part(lower(trim(email_input)), '@', 1) <> ''
+    and split_part(lower(trim(email_input)), '@', 2) = 'jspm.edu.in';
 $$;
 
 create or replace function public.handle_new_user()
@@ -132,6 +178,10 @@ security definer
 set search_path = public
 as $$
 begin
+  if not public.is_valid_college_email(new.email) then
+    raise exception 'Only @jspm.edu.in email addresses are allowed for signup';
+  end if;
+
   insert into public.users (id, name, email, role)
   values (
     new.id,
@@ -194,6 +244,7 @@ alter table public.alerts enable row level security;
 alter table public.issues enable row level security;
 alter table public.issue_history enable row level security;
 alter table public.notifications enable row level security;
+alter table public.transport_preferences enable row level security;
 
 -- Users policies
 drop policy if exists "users_select_own_or_admin" on public.users;
@@ -249,10 +300,28 @@ on public.buses for select
 using (auth.uid() is not null);
 
 drop policy if exists "buses_manage_authenticated" on public.buses;
-create policy "buses_manage_authenticated"
+drop policy if exists "buses_manage_staff_driver" on public.buses;
+create policy "buses_manage_staff_driver"
 on public.buses for update
-using (auth.uid() is not null)
-with check (auth.uid() is not null);
+using (public.current_user_role() in ('admin', 'faculty', 'bus_driver'))
+with check (public.current_user_role() in ('admin', 'faculty', 'bus_driver'));
+
+-- Transport preferences policies
+drop policy if exists "transport_preferences_select_own_or_admin" on public.transport_preferences;
+create policy "transport_preferences_select_own_or_admin"
+on public.transport_preferences for select
+using (user_id = auth.uid() or public.current_user_role() = 'admin');
+
+drop policy if exists "transport_preferences_insert_own" on public.transport_preferences;
+create policy "transport_preferences_insert_own"
+on public.transport_preferences for insert
+with check (user_id = auth.uid());
+
+drop policy if exists "transport_preferences_update_own" on public.transport_preferences;
+create policy "transport_preferences_update_own"
+on public.transport_preferences for update
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
 
 -- Parking policies
 drop policy if exists "parking_read_authenticated" on public.parking_availability;
@@ -262,7 +331,7 @@ using (auth.uid() is not null);
 
 drop policy if exists "parking_manage_staff" on public.parking_availability;
 create policy "parking_manage_staff"
-on public.parking_availability for all
+on public.parking_availability for update
 using (public.current_user_role() in ('faculty', 'admin'))
 with check (public.current_user_role() in ('faculty', 'admin'));
 

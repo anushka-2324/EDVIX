@@ -10,6 +10,10 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (!(auth.profile.role === "admin" || auth.profile.role === "faculty")) {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
+    }
+
     const data = await simulateBusMovement(auth.supabase);
 
     return NextResponse.json({ data });

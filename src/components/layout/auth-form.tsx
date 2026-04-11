@@ -10,8 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { isValidCollegeEmail } from "@/lib/utils";
 
-function getFriendlyAuthError(message?: string) {
+function getFriendlyAuthError(message?: string, context?: { mode?: "signin" | "signup"; role?: string }) {
   const normalized = (message ?? "").toLowerCase();
 
   if (normalized.includes("invalid login credentials")) {
@@ -20,6 +21,14 @@ function getFriendlyAuthError(message?: string) {
 
   if (normalized.includes("email not confirmed")) {
     return "Please confirm your email, then try signing in again.";
+  }
+
+  if (normalized.includes("database error") && context?.mode === "signup" && context.role === "bus_driver") {
+    return "Bus Driver signup is blocked by DB role constraint. Run latest supabase/schema.sql and try again.";
+  }
+
+  if (normalized.includes("failed to fetch")) {
+    return "Could not reach auth service. Check internet/Supabase and try again.";
   }
 
   return message ?? "Authentication failed. Please try again.";
@@ -42,41 +51,51 @@ export function AuthForm() {
         .trim()
         .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "");
 
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-
-        if (error) {
-          toast.error(getFriendlyAuthError(error.message));
+      try {
+        if (mode === "signup" && !isValidCollegeEmail(cleanEmail)) {
+          toast.error("Only @jspm.edu.in email IDs are allowed for signup.");
           return;
         }
 
-        toast.success("Welcome back to EDVIX");
-        router.replace("/dashboard");
-        router.refresh();
-        return;
-      }
+        if (mode === "signin") {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
 
-      const { error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            name,
-            role,
+          if (error) {
+            toast.error(getFriendlyAuthError(error.message, { mode, role }));
+            return;
+          }
+
+          toast.success("Welcome back to EDVIX");
+          router.replace("/dashboard");
+          router.refresh();
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              name,
+              role,
+            },
           },
-        },
-      });
+        });
 
-      if (error) {
-        toast.error(getFriendlyAuthError(error.message));
-        return;
+        if (error) {
+          toast.error(getFriendlyAuthError(error.message, { mode, role }));
+          return;
+        }
+
+        toast.success("Account created. You can sign in now.");
+        setMode("signin");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Authentication failed. Please try again.";
+        toast.error(getFriendlyAuthError(message, { mode, role }));
       }
-
-      toast.success("Account created. You can sign in now.");
-      setMode("signin");
     });
   };
 
@@ -124,7 +143,7 @@ export function AuthForm() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="student@edvix.edu"
+            placeholder="student@jspm.edu.in"
           />
         </div>
 
@@ -150,6 +169,7 @@ export function AuthForm() {
                 { label: "Student", value: "student" },
                 { label: "Faculty", value: "faculty" },
                 { label: "Admin", value: "admin" },
+                { label: "Bus Driver", value: "bus_driver" },
               ]}
             />
           </div>

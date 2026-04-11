@@ -22,7 +22,7 @@ export function AttendanceTable({ logs }: AttendanceTableProps) {
               <TableHead>Class</TableHead>
               <TableHead>Session</TableHead>
               <TableHead>Timestamp</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Status</TableHead> 
             </TableRow>
           </TableHeader>
           <TableBody>

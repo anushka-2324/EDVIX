@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const COLLEGE_EMAIL_DOMAIN = "jspm.edu.in";
+
+export function isValidCollegeEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const parts = normalized.split("@");
+
+  return parts.length === 2 && parts[0].length > 0 && parts[1] === COLLEGE_EMAIL_DOMAIN;
+}
+
 export function formatDateTime(input: string | Date) {
   const date = typeof input === "string" ? new Date(input) : input;
   return new Intl.DateTimeFormat("en-IN", {

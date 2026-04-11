@@ -1,6 +1,6 @@
 import { subDays } from "date-fns";
 import { type ParkingAvailabilitySummary, type UserRole } from "@/lib/types";
-import { isMissingTableError, toDbError } from "@/lib/supabase/errors";
+import { isMissingTableError, isStatementTimeoutError, toDbError } from "@/lib/supabase/errors";
 
 type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createServerSupabaseClient>>;
 
@@ -36,7 +36,7 @@ export async function getDashboardSummary(supabase: SupabaseClient, userId: stri
       return result.count ?? 0;
     }
 
-    if (isMissingTableError(result.error, table)) {
+    if (isMissingTableError(result.error, table) || isStatementTimeoutError(result.error)) {
       return 0;
     }
 
@@ -69,7 +69,7 @@ export async function getParkingAvailabilitySummary(
     .select("total_slots, occupied_slots");
 
   if (error) {
-    if (isMissingTableError(error, "parking_availability")) {
+    if (isMissingTableError(error, "parking_availability") || isStatementTimeoutError(error)) {
       return {
         total: 0,
         occupied: 0,

@@ -8,6 +8,7 @@ const protectedRoutes = [
   "/alerts",
   "/issues",
   "/navigation",
+  "/driver",
   "/admin",
 ];
 

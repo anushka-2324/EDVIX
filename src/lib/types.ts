@@ -1,4 +1,4 @@
-export type UserRole = "student" | "faculty" | "admin";
+export type UserRole = "student" | "faculty" | "admin" | "bus_driver";
 
 export type AlertType = "class" | "bus" | "announcement";
 
@@ -42,11 +42,24 @@ export type FacultyAttendanceSheetRow = {
   status: AttendanceStatus;
 };
 
+export type PickupSource = "college" | "school";
+
 export type Bus = {
   id: string;
   name: string;
   lat: number;
   lng: number;
+  updated_at: string;
+  pickup_area: string | null;
+  pickup_source: PickupSource | null;
+  driver_id: string | null;
+};
+
+export type TransportPreference = {
+  user_id: string;
+  preferred_bus_id: string | null;
+  preferred_area: string | null;
+  preferred_source: PickupSource | null;
   updated_at: string;
 };
 

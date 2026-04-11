@@ -6,7 +6,7 @@ Production-style MVP for a unified smart campus platform built with **Next.js Ap
 
 - **Authentication + RBAC**
   - Supabase Auth (email/password)
-  - Roles: `student`, `faculty`, `admin`
+  - Roles: `student`, `faculty`, `admin`, `bus_driver`
   - Route and API-level role checks
 
 - **QR Attendance System**
@@ -20,6 +20,8 @@ Production-style MVP for a unified smart campus platform built with **Next.js Ap
 - **Bus Tracking System**
   - Live map with bus markers (Leaflet)
   - ETA estimation
+  - Bus/area/source preference filters for students, faculty, and admins
+  - Driver dashboard to select bus number + pickup area/source and share live location
   - Mock GPS simulation (API tick + optional background simulator script)
   - Supabase realtime bus updates
 
@@ -81,12 +83,14 @@ Production-style MVP for a unified smart campus platform built with **Next.js Ap
 src/
   app/
     (auth)/login
-    (protected)/dashboard|attendance|transport|parking|alerts|issues|navigation|admin
+    (protected)/dashboard|attendance|transport|driver|parking|alerts|issues|navigation|admin
     api/
       attendance/mark
       classes
       classes/[id]/rotate-qr
       buses/simulate
+      driver/session
+      transport/preferences
       parking
       parking/[id]/occupancy
       parking/simulate
@@ -172,11 +176,13 @@ Open: `http://localhost:3000`
 
 ## Demo Notes
 
-- Create accounts via Sign Up and choose role (`student`, `faculty`, `admin`).
+- Create accounts via Sign Up and choose role (`student`, `faculty`, `admin`, `bus_driver`).
 - For best local demo, disable strict email confirmation in Supabase auth settings.
 - Faculty/Admin can refresh QR codes and customize live attendance by subject/topic.
 - Students can scan/paste attendance token from Attendance page or Dashboard live scanner.
-- Bus simulation can run by API trigger in UI or script:
+- Bus drivers should use `/driver` to set bus number + pickup area/source and start live location.
+- Students/faculty/admin can set preferred bus and area on `/transport` for filtered visibility.
+- Bus simulation (admin/faculty demo mode) can run by API trigger in UI or script:
 
 ```bash
 npm run simulate:buses

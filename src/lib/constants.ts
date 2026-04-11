@@ -62,4 +62,5 @@ export const ROLE_LABELS = {
   student: "Student",
   faculty: "Faculty",
   admin: "Admin",
+  bus_driver: "Bus Driver",
 } as const;

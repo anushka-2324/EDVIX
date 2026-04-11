@@ -31,6 +31,11 @@ export function BusMapLeaflet({ buses, center }: BusMapLeafletProps) {
             <div className="space-y-1">
               <p className="font-semibold">{bus.name}</p>
               <p className="text-xs">ETA: {estimateEtaMinutes(bus.lat, bus.lng)} mins</p>
+              {bus.pickup_area && (
+                <p className="text-xs">
+                  Pickup: {bus.pickup_area} ({bus.pickup_source ?? "college"})
+                </p>
+              )}
             </div>
           </Popup>
         </Marker>

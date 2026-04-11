@@ -21,6 +21,7 @@ const NAV_ITEMS: { href: string; label: string; roles: UserRole[] }[] = [
   { href: "/dashboard", label: "Dashboard", roles: ["student", "faculty", "admin"] },
   { href: "/attendance", label: "Attendance", roles: ["student", "faculty", "admin"] },
   { href: "/transport", label: "Transport", roles: ["student", "faculty", "admin"] },
+  { href: "/driver", label: "Driver Panel", roles: ["bus_driver"] },
   { href: "/parking", label: "Parking", roles: ["student", "faculty", "admin"] },
   { href: "/alerts", label: "Alerts", roles: ["student", "faculty", "admin"] },
   { href: "/issues", label: "Issue Reports", roles: ["student", "faculty", "admin"] },

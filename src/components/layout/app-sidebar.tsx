@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["student", "faculty", "admin"] },
   { href: "/attendance", label: "Attendance", icon: QrCode, roles: ["student", "faculty", "admin"] },
   { href: "/transport", label: "Transport", icon: Bus, roles: ["student", "faculty", "admin"] },
+  { href: "/driver", label: "Driver Panel", icon: Bus, roles: ["bus_driver"] },
   { href: "/parking", label: "Parking", icon: CarFront, roles: ["student", "faculty", "admin"] },
   { href: "/alerts", label: "Alerts", icon: Bell, roles: ["student", "faculty", "admin"] },
   { href: "/issues", label: "Issue Reports", icon: TriangleAlert, roles: ["student", "faculty", "admin"] },

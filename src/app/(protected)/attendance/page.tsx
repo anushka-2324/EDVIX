@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { CreateClassSessionCard } from "@/components/attendance/create-class-session-card";
 import { QrGeneratorCard } from "@/components/attendance/qr-generator-card";
 import { QrScannerCard } from "@/components/attendance/qr-scanner-card";
@@ -8,6 +9,10 @@ import { getAttendanceLogs, getClasses } from "@/services/attendance";
 
 export default async function AttendancePage() {
   const { supabase, profile, user } = await requireUser();
+
+  if (profile.role === "bus_driver") {
+    redirect("/driver");
+  }
 
   const [classes, logs] = await Promise.all([
     getClasses(supabase),
