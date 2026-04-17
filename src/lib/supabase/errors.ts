@@ -20,12 +20,17 @@ export function isMissingColumnError(error: unknown, table: string, column: stri
 
   const maybeError = error as PostgrestLikeError;
   const message = maybeError.message ?? "";
+  const normalized = message.toLowerCase();
 
   return (
-    maybeError.code === "42703" &&
-    (message.includes(`column ${table}.${column}`) ||
-      message.includes(`column \"${column}\"`) ||
-      message.includes(`${table}.${column}`))
+    (maybeError.code === "42703" &&
+      (message.includes(`column ${table}.${column}`) ||
+        message.includes(`column \"${column}\"`) ||
+        message.includes(`${table}.${column}`))) ||
+    (maybeError.code === "PGRST204" &&
+      normalized.includes("schema cache") &&
+      normalized.includes(`'${column.toLowerCase()}'`) &&
+      normalized.includes(`'${table.toLowerCase()}'`))
   );
 }
 

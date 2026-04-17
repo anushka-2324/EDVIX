@@ -33,11 +33,16 @@ type LegacyClassRow = {
 
 const CLASS_EXTENDED_COLUMNS = ["subject", "current_topic", "qr_updated_at", "qr_expires_at"] as const;
 const CLASS_PROXIMITY_COLUMNS = ["qr_origin_lat", "qr_origin_lng", "qr_generated_by"] as const;
+const ATTENDANCE_EXTENDED_COLUMNS = ["attendance_date", "status", "proximity_distance_m", "marked_by"] as const;
 
 function isLegacyClassesError(error: unknown) {
   return [...CLASS_EXTENDED_COLUMNS, ...CLASS_PROXIMITY_COLUMNS].some((column) =>
     isMissingColumnError(error, "classes", column)
   );
+}
+
+function isLegacyAttendanceError(error: unknown) {
+  return ATTENDANCE_EXTENDED_COLUMNS.some((column) => isMissingColumnError(error, "attendance", column));
 }
 
 function withClassDefaults(classRow: LegacyClassRow): CampusClass {
@@ -229,7 +234,21 @@ export async function createClassSession(
     throw toDbError(customInsert.error, "Unable to create class session", "classes");
   }
 
-  throw new Error("Attendance proximity enforcement requires the latest database migration");
+  const legacyInsert = await supabase
+    .from("classes")
+    .insert({
+      name,
+      qr_code: qrToken,
+      active: true,
+    })
+    .select("id, name, qr_code, active")
+    .single();
+
+  if (legacyInsert.error || !legacyInsert.data) {
+    throw toDbError(legacyInsert.error, "Unable to create class session", "classes");
+  }
+
+  return withClassDefaults(legacyInsert.data as LegacyClassRow);
 }
 
 export async function rotateClassQrCode(
@@ -292,7 +311,32 @@ export async function rotateClassQrCode(
     }
   }
 
-  throw new Error("Attendance proximity enforcement requires the latest database migration");
+  const legacyUpdate = await supabase
+    .from("classes")
+    .update({
+      qr_code: qrToken,
+      active: true,
+    })
+    .eq("id", classId)
+    .select("id, name, qr_code, active")
+    .single();
+
+  if (legacyUpdate.error || !legacyUpdate.data) {
+    throw toDbError(legacyUpdate.error, "Unable to rotate QR code", "classes");
+  }
+
+  const legacyClass = withClassDefaults(legacyUpdate.data as LegacyClassRow);
+
+  return {
+    ...legacyClass,
+    subject,
+    current_topic: topic,
+    qr_updated_at: nowIso,
+    qr_expires_at: expiresAt,
+    qr_origin_lat: null,
+    qr_origin_lng: null,
+    qr_generated_by: options.generatedByUserId,
+  };
 }
 
 export async function markAttendance(
@@ -359,25 +403,22 @@ export async function markAttendance(
     throw new Error("QR token expired. Ask faculty to generate a new one");
   }
 
-  if (
-    typeof classRow.qr_origin_lat !== "number" ||
-    typeof classRow.qr_origin_lng !== "number" ||
-    !classRow.qr_generated_by
-  ) {
-    throw new Error("QR origin unavailable. Ask faculty to refresh the classroom QR");
-  }
+  const hasQrOrigin =
+    typeof classRow.qr_origin_lat === "number" && typeof classRow.qr_origin_lng === "number";
 
-  const distanceMeters = calculateDistanceMeters(
-    latitude,
-    longitude,
-    classRow.qr_origin_lat,
-    classRow.qr_origin_lng
-  );
-
-  if (distanceMeters > ATTENDANCE_PROXIMITY_RADIUS_METERS) {
-    throw new Error(
-      `You must be within ${ATTENDANCE_PROXIMITY_RADIUS_METERS} meters of the faculty QR location to mark attendance`
+  if (hasQrOrigin) {
+    const distanceMeters = calculateDistanceMeters(
+      latitude,
+      longitude,
+      classRow.qr_origin_lat as number,
+      classRow.qr_origin_lng as number
     );
+
+    if (distanceMeters > ATTENDANCE_PROXIMITY_RADIUS_METERS) {
+      throw new Error(
+        `You must be within ${ATTENDANCE_PROXIMITY_RADIUS_METERS} meters of the faculty QR location to mark attendance`
+      );
+    }
   }
 
   const today = startOfDay(new Date()).toISOString();
@@ -398,9 +439,20 @@ export async function markAttendance(
 
   const { data, error } = await supabase
     .from("attendance")
-    .insert({ user_id: userId, class_id: classRow.id, marked_by: classRow.qr_generated_by })
+    .insert({ user_id: userId, class_id: classRow.id, marked_by: classRow.qr_generated_by ?? null })
     .select("id, user_id, class_id, timestamp")
     .single();
+
+  if (error && isLegacyAttendanceError(error)) {
+    const { data: legacyData, error: legacyError } = await supabase
+      .from("attendance")
+      .insert({ user_id: userId, class_id: classRow.id })
+      .select("id, user_id, class_id, timestamp")
+      .single();
+
+    if (legacyError) throw toDbError(legacyError, "Unable to mark attendance", "attendance");
+    return legacyData;
+  }
 
   if (error) throw toDbError(error, "Unable to mark attendance", "attendance");
 
