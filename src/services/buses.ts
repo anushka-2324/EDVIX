@@ -7,6 +7,7 @@ type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").
 type DriverSessionPayload = {
   driverId: string;
   busId: string;
+  busNumber: string;
   pickupArea: string;
   pickupSource: PickupSource;
   lat?: number;
@@ -21,19 +22,20 @@ type LegacyBusRow = {
   updated_at: string;
 };
 
-const BUS_EXTENDED_COLUMNS = ["pickup_area", "pickup_source", "driver_id"] as const;
+const BUS_EXTENDED_COLUMNS = ["bus_number", "pickup_area", "pickup_source", "driver_id"] as const;
 
 function isLegacyBusColumnsError(error: unknown) {
   return BUS_EXTENDED_COLUMNS.some((column) => isMissingColumnError(error, "buses", column));
 }
 
-function normalizeBus(row: LegacyBusRow & Partial<Pick<Bus, "pickup_area" | "pickup_source" | "driver_id">>): Bus {
+function normalizeBus(row: LegacyBusRow & Partial<Pick<Bus, "bus_number" | "pickup_area" | "pickup_source" | "driver_id">>): Bus {
   return {
     id: row.id,
     name: row.name,
     lat: row.lat,
     lng: row.lng,
     updated_at: row.updated_at,
+    bus_number: row.bus_number ?? null,
     pickup_area: row.pickup_area ?? null,
     pickup_source: (row.pickup_source ?? null) as PickupSource | null,
     driver_id: row.driver_id ?? null,
@@ -86,7 +88,7 @@ export function filterBusesByPreference(
 export async function getBuses(supabase: SupabaseClient) {
   const fullRes = await supabase
     .from("buses")
-    .select("id, name, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
+    .select("id, name, bus_number, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
     .order("name");
 
   if (!fullRes.error) {
@@ -120,7 +122,7 @@ export async function getBuses(supabase: SupabaseClient) {
 export async function getDriverAssignedBus(supabase: SupabaseClient, driverId: string) {
   const res = await supabase
     .from("buses")
-    .select("id, name, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
+    .select("id, name, bus_number, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
     .eq("driver_id", driverId)
     .order("updated_at", { ascending: false })
     .limit(1)
@@ -217,6 +219,7 @@ export async function upsertDriverBusSession(supabase: SupabaseClient, payload: 
   const updatePayload: Record<string, string | number | null> = {
     updated_at: nowIso,
     driver_id: payload.driverId,
+    bus_number: payload.busNumber,
     pickup_area: payload.pickupArea,
     pickup_source: payload.pickupSource,
   };
@@ -230,7 +233,7 @@ export async function upsertDriverBusSession(supabase: SupabaseClient, payload: 
     .from("buses")
     .update(updatePayload)
     .eq("id", payload.busId)
-    .select("id, name, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
+    .select("id, name, bus_number, lat, lng, updated_at, pickup_area, pickup_source, driver_id")
     .single();
 
   if (!fullRes.error && fullRes.data) {
@@ -263,6 +266,7 @@ export async function upsertDriverBusSession(supabase: SupabaseClient, payload: 
 
   return normalizeBus({
     ...(legacyRes.data as LegacyBusRow),
+    bus_number: payload.busNumber,
     pickup_area: payload.pickupArea,
     pickup_source: payload.pickupSource,
     driver_id: payload.driverId,

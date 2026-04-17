@@ -47,6 +47,7 @@ export type PickupSource = "college" | "school";
 export type Bus = {
   id: string;
   name: string;
+  bus_number: string | null;
   lat: number;
   lng: number;
   updated_at: string;

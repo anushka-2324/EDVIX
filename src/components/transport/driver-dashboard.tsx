@@ -21,12 +21,21 @@ type DriverDashboardProps = {
 export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDashboardProps) {
   const { buses, setBuses } = useRealtimeBuses(initialBuses);
   const [busId, setBusId] = useState(initialAssignedBus?.id ?? initialBuses[0]?.id ?? "");
+  const [busNumber, setBusNumber] = useState(initialAssignedBus?.bus_number ?? "");
   const [pickupArea, setPickupArea] = useState(initialAssignedBus?.pickup_area ?? "");
   const [pickupSource, setPickupSource] = useState<PickupSource>(initialAssignedBus?.pickup_source ?? "college");
   const [isSharing, setIsSharing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialAssignedBus?.updated_at ?? null);
   const [isPending, startTransition] = useTransition();
   const watchIdRef = useRef<number | null>(null);
+
+  // Debugging log to verify buses data loaded from backend server correctly
+  useEffect(() => {
+    console.log("[DriverDashboard Debug] Rendered with buses:", buses);
+    if (buses.length === 0) {
+      console.warn("[DriverDashboard Debug] Warning: The buses array is empty. Please ensure route data exists in your Supabase database.");
+    }
+  }, [buses]);
 
   const selectedBus = useMemo(() => buses.find((bus) => bus.id === busId) ?? null, [buses, busId]);
 
@@ -45,7 +54,12 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
 
   const syncDriverSession = (coords?: { latitude: number; longitude: number }) => {
     if (!busId) {
-      toast.error("Select a bus number first");
+      toast.error("Select a route first");
+      return;
+    }
+
+    if (!busNumber) {
+      toast.error("Select a vehicle number first");
       return;
     }
 
@@ -61,6 +75,7 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bus_id: busId,
+            bus_number: busNumber,
             pickup_area: pickupArea.trim(),
             pickup_source: pickupSource,
             lat: coords?.latitude,
@@ -151,12 +166,36 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="driver-bus">Bus Number</Label>
+            <Label htmlFor="driver-bus">Route Entry</Label>
             <Select
               id="driver-bus"
               value={busId}
               onChange={(event) => setBusId(event.target.value)}
-              options={buses.map((bus) => ({ value: bus.id, label: bus.name }))}
+              disabled={buses.length === 0}
+              options={
+                buses.length > 0
+                  ? [
+                      { value: "", label: "Select Route..." },
+                      ...buses.map((bus) => ({ value: bus.id, label: bus.name }))
+                    ]
+                  : [{ value: "", label: "No routes available from database" }]
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="driver-bus-number">Vehicle Number</Label>
+            <Select
+              id="driver-bus-number"
+              value={busNumber}
+              onChange={(event) => setBusNumber(event.target.value)}
+              options={[
+                { value: "", label: "Select Vehicle..." },
+                { value: "PS01", label: "PS01" },
+                { value: "PS02", label: "PS02" },
+                { value: "PS03", label: "PS03" },
+                { value: "PS04", label: "PS04" },
+              ]}
             />
           </div>
 

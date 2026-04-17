@@ -58,12 +58,37 @@ export function AuthForm() {
         }
 
         if (mode === "signin") {
-          const { error } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          });
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          console.log("[Auth Debug] Attempting sign-in for:", cleanEmail);
+          console.log("[Auth Debug] Using URL:", supabaseUrl ? supabaseUrl.replace(/(https?:\/\/)([^.]*)(.*)/, "$1***$3") : "UNDEFINED");
+
+          if (!supabaseUrl) {
+            toast.error("Cannot connect to server. Database configuration is missing.");
+            return;
+          }
+
+          let signInResult;
+          try {
+            signInResult = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password,
+            });
+            console.log("[Auth Debug] Sign-in API response received.", {
+              success: !signInResult.error
+            });
+          } catch (networkError) {
+            const errMsg = networkError instanceof Error ? networkError.message : String(networkError);
+            console.warn("[Auth Debug] Network or unhandled failure:", errMsg);
+
+            // This caters to CORS or hard network failures
+            toast.error("Cannot connect to server. Please check your internet connection or Supabase settings.");
+            return;
+          }
+
+          const { error } = signInResult;
 
           if (error) {
+            console.warn("[Auth Debug] Supabase returned an authentication error:", error.message);
             toast.error(getFriendlyAuthError(error.message, { mode, role }));
             return;
           }

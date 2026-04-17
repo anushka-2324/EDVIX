@@ -44,12 +44,19 @@ export function BusMap({ buses }: BusMapProps) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {buses.map((bus) => (
           <div key={bus.id} className="bg-card rounded-lg border p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="font-medium">{bus.name}</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">ETA {estimateEtaMinutes(bus.lat, bus.lng)}m</Badge>
-                {bus.driver_id && <Badge variant="success">Live</Badge>}
+            <div className="mb-2 flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium">{bus.name}</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">ETA {estimateEtaMinutes(bus.lat, bus.lng)}m</Badge>
+                  {bus.driver_id && <Badge variant="success">Live</Badge>}
+                </div>
               </div>
+              {bus.bus_number && (
+                <Badge variant="outline" className="w-fit text-xs bg-muted/50">
+                  Vehicle: {bus.bus_number}
+                </Badge>
+              )}
             </div>
             <p className="text-muted-foreground text-xs">
               Coordinates: {bus.lat.toFixed(5)}, {bus.lng.toFixed(5)}
