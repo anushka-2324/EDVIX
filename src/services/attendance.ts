@@ -41,6 +41,10 @@ function isLegacyClassesError(error: unknown) {
   );
 }
 
+function isLegacyClassProximityError(error: unknown) {
+  return CLASS_PROXIMITY_COLUMNS.some((column) => isMissingColumnError(error, "classes", column));
+}
+
 function isLegacyAttendanceError(error: unknown) {
   return ATTENDANCE_EXTENDED_COLUMNS.some((column) => isMissingColumnError(error, "attendance", column));
 }
@@ -92,6 +96,28 @@ export async function getClasses(supabase: SupabaseClient) {
   }
 
   if (isLegacyClassesError(error)) {
+    const noProximityRes = await supabase
+      .from("classes")
+      .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
+      .order("name");
+
+    if (!noProximityRes.error) {
+      return (noProximityRes.data ?? []).map((classRow) => ({
+        ...(classRow as Omit<CampusClass, "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+        qr_origin_lat: null,
+        qr_origin_lng: null,
+        qr_generated_by: null,
+      }));
+    }
+
+    if (isMissingTableError(noProximityRes.error, "classes")) {
+      return [];
+    }
+
+    if (!isLegacyClassesError(noProximityRes.error)) {
+      throw toDbError(noProximityRes.error, "Unable to load classes", "classes");
+    }
+
     const legacyRes = await supabase.from("classes").select("id, name, qr_code, active").order("name");
     if (legacyRes.error) {
       if (isMissingTableError(legacyRes.error, "classes")) {
@@ -234,6 +260,33 @@ export async function createClassSession(
     throw toDbError(customInsert.error, "Unable to create class session", "classes");
   }
 
+  const noProximityInsert = await supabase
+    .from("classes")
+    .insert({
+      name,
+      subject,
+      current_topic: topic,
+      qr_code: qrToken,
+      qr_updated_at: nowIso,
+      qr_expires_at: expiresAt,
+      active: true,
+    })
+    .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
+    .single();
+
+  if (!noProximityInsert.error && noProximityInsert.data) {
+    return {
+      ...(noProximityInsert.data as Omit<CampusClass, "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+      qr_origin_lat: null,
+      qr_origin_lng: null,
+      qr_generated_by: options.generatedByUserId,
+    };
+  }
+
+  if (noProximityInsert.error && !isLegacyClassesError(noProximityInsert.error)) {
+    throw toDbError(noProximityInsert.error, "Unable to create class session", "classes");
+  }
+
   const legacyInsert = await supabase
     .from("classes")
     .insert({
@@ -286,21 +339,21 @@ export async function rotateClassQrCode(
     const customUpdate = await supabase
       .from("classes")
       .update({
-      qr_code: qrToken,
-      subject,
-      current_topic: topic,
-      qr_updated_at: nowIso,
-      qr_expires_at: expiresAt,
-      qr_origin_lat: options.latitude,
-      qr_origin_lng: options.longitude,
-      qr_generated_by: options.generatedByUserId,
-      active: true,
-    })
-    .eq("id", classId)
-    .select(
-      "id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by"
-    )
-    .single();
+        qr_code: qrToken,
+        subject,
+        current_topic: topic,
+        qr_updated_at: nowIso,
+        qr_expires_at: expiresAt,
+        qr_origin_lat: options.latitude,
+        qr_origin_lng: options.longitude,
+        qr_generated_by: options.generatedByUserId,
+        active: true,
+      })
+      .eq("id", classId)
+      .select(
+        "id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by"
+      )
+      .single();
 
     if (!customUpdate.error && customUpdate.data) {
       return customUpdate.data as CampusClass;
@@ -308,6 +361,35 @@ export async function rotateClassQrCode(
 
     if (customUpdate.error && !isLegacyClassesError(customUpdate.error)) {
       throw toDbError(customUpdate.error, "Unable to rotate QR code", "classes");
+    }
+
+    if (customUpdate.error && isLegacyClassProximityError(customUpdate.error)) {
+      const noProximityUpdate = await supabase
+        .from("classes")
+        .update({
+          qr_code: qrToken,
+          subject,
+          current_topic: topic,
+          qr_updated_at: nowIso,
+          qr_expires_at: expiresAt,
+          active: true,
+        })
+        .eq("id", classId)
+        .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
+        .single();
+
+      if (!noProximityUpdate.error && noProximityUpdate.data) {
+        return {
+          ...(noProximityUpdate.data as Omit<CampusClass, "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+          qr_origin_lat: null,
+          qr_origin_lng: null,
+          qr_generated_by: options.generatedByUserId,
+        };
+      }
+
+      if (noProximityUpdate.error && !isLegacyClassesError(noProximityUpdate.error)) {
+        throw toDbError(noProximityUpdate.error, "Unable to rotate QR code", "classes");
+      }
     }
   }
 
