@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ImagePlus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,7 +57,7 @@ export function IssueForm({ onCreated }: IssueFormProps) {
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Failed to submit issue");
+          throw new Error(getErrorMessage(payload.error, "Failed to submit issue"));
         }
 
         toast.success("Issue submitted to admin desk");
@@ -66,7 +67,7 @@ export function IssueForm({ onCreated }: IssueFormProps) {
         setImageFile(null);
         onCreated?.();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Unable to report issue");
+        toast.error(getErrorMessage(error, "Unable to report issue"));
       }
     });
   };

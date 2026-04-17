@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useRealtimeBuses } from "@/hooks/use-realtime-buses";
+import { getErrorMessage } from "@/lib/errors";
 import { type Bus, type PickupSource, type TransportPreference, type UserRole } from "@/lib/types";
 
 type BusTrackerProps = {
@@ -55,7 +56,7 @@ export function BusTracker({ initialBuses, role, initialPreference }: BusTracker
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Failed to update buses");
+          throw new Error(getErrorMessage(payload.error, "Failed to update buses"));
         }
 
         setBuses(payload.data as Bus[]);
@@ -81,7 +82,7 @@ export function BusTracker({ initialBuses, role, initialPreference }: BusTracker
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to save preference");
+          throw new Error(getErrorMessage(payload.error, "Unable to save preference"));
         }
 
         toast.success("Transport preference saved");

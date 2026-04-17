@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { getBuses, getDriverAssignedBus, upsertDriverBusSession } from "@/services/buses";
 
 const schema = z.object({
@@ -31,7 +32,7 @@ export async function GET() {
     return NextResponse.json({ data: { assigned, buses } });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch driver session" },
+      { error: getErrorMessage(error, "Unable to fetch driver session") },
       { status: 500 }
     );
   }
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+      return NextResponse.json(
+        { error: getErrorMessage(parsed.error.flatten().fieldErrors, "Invalid driver session payload") },
+        { status: 400 }
+      );
     }
 
     const data = await upsertDriverBusSession(auth.supabase, {
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to update driver session" },
+      { error: getErrorMessage(error, "Unable to update driver session") },
       { status: 500 }
     );
   }

@@ -22,6 +22,9 @@ export type CampusClass = {
   current_topic: string | null;
   qr_updated_at: string | null;
   qr_expires_at: string | null;
+  qr_origin_lat: number | null;
+  qr_origin_lng: number | null;
+  qr_generated_by: string | null;
 };
 
 export type AttendanceLog = {
@@ -113,4 +116,16 @@ export type CampusLocation = {
   lat: number;
   lng: number;
   description: string;
+  navigationHint?: string;
+};
+
+export type CampusPreset = {
+  id: string;
+  name: string;
+  center: {
+    lat: number;
+    lng: number;
+  };
+  zoom?: number;
+  locations: CampusLocation[];
 };

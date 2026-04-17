@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { createIssue, getIssues } from "@/services/issues";
 
 const issueSchema = z.object({
@@ -19,10 +20,7 @@ export async function GET() {
     const data = await getIssues(auth.supabase, auth.user.id, auth.profile.role);
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch issues" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(error, "Unable to fetch issues") }, { status: 500 });
   }
 }
 
@@ -37,7 +35,10 @@ export async function POST(request: Request) {
     const parsed = issueSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+      return NextResponse.json(
+        { error: getErrorMessage(parsed.error.flatten().fieldErrors, "Invalid issue payload") },
+        { status: 400 }
+      );
     }
 
     const data = await createIssue(auth.supabase, {
@@ -49,9 +50,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to submit issue" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(error, "Unable to submit issue") }, { status: 500 });
   }
 }

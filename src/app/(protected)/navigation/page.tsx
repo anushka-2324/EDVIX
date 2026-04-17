@@ -1,6 +1,6 @@
 import { CampusMap } from "@/components/navigation/campus-map";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CAMPUS_LOCATIONS } from "@/lib/constants";
+import { CAMPUS_PRESETS } from "@/lib/constants";
 
 export default function NavigationPage() {
   return (
@@ -8,17 +8,17 @@ export default function NavigationPage() {
       <div>
         <h1 className="text-2xl font-semibold">Campus Navigation</h1>
         <p className="text-muted-foreground text-sm">
-          Search buildings and locate departments, hostels, and transport bays.
+          Choose your college location, then generate walking directions to any mapped destination on campus.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Interactive Campus Map</CardTitle>
-          <CardDescription>Static MVP map with searchable location markers.</CardDescription>
+          <CardDescription>Select a college preset, pick a route, and follow the generated directions.</CardDescription>
         </CardHeader>
         <CardContent>
-          <CampusMap locations={CAMPUS_LOCATIONS} />
+          <CampusMap presets={CAMPUS_PRESETS} />
         </CardContent>
       </Card>
     </div>

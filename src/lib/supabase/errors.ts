@@ -42,6 +42,15 @@ export function isStatementTimeoutError(error: unknown) {
   );
 }
 
+export function isStackDepthError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const maybeError = error as PostgrestLikeError;
+  const message = (maybeError.message ?? "").toLowerCase();
+
+  return message.includes("stack depth limit exceeded");
+}
+
 export function toDbError(error: unknown, fallback: string, table?: string) {
   if (table && isMissingTableError(error, table)) {
     return new Error(SCHEMA_HINT);

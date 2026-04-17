@@ -1,5 +1,5 @@
 import { startOfDay } from "date-fns";
-import { randomToken } from "@/lib/utils";
+import { ATTENDANCE_PROXIMITY_RADIUS_METERS, calculateDistanceMeters, randomToken } from "@/lib/utils";
 import { type UserRole, type CampusClass, type AttendanceLog } from "@/lib/types";
 import { isMissingColumnError, isMissingTableError, toDbError } from "@/lib/supabase/errors";
 
@@ -9,6 +9,9 @@ type RotateQrOptions = {
   subject?: string;
   topic?: string | null;
   expiresInMinutes?: number;
+  latitude: number;
+  longitude: number;
+  generatedByUserId: string;
 };
 
 type CreateClassSessionOptions = {
@@ -16,6 +19,9 @@ type CreateClassSessionOptions = {
   subject?: string;
   topic?: string | null;
   expiresInMinutes?: number;
+  latitude: number;
+  longitude: number;
+  generatedByUserId: string;
 };
 
 type LegacyClassRow = {
@@ -26,9 +32,12 @@ type LegacyClassRow = {
 };
 
 const CLASS_EXTENDED_COLUMNS = ["subject", "current_topic", "qr_updated_at", "qr_expires_at"] as const;
+const CLASS_PROXIMITY_COLUMNS = ["qr_origin_lat", "qr_origin_lng", "qr_generated_by"] as const;
 
 function isLegacyClassesError(error: unknown) {
-  return CLASS_EXTENDED_COLUMNS.some((column) => isMissingColumnError(error, "classes", column));
+  return [...CLASS_EXTENDED_COLUMNS, ...CLASS_PROXIMITY_COLUMNS].some((column) =>
+    isMissingColumnError(error, "classes", column)
+  );
 }
 
 function withClassDefaults(classRow: LegacyClassRow): CampusClass {
@@ -38,6 +47,9 @@ function withClassDefaults(classRow: LegacyClassRow): CampusClass {
     current_topic: null,
     qr_updated_at: null,
     qr_expires_at: null,
+    qr_origin_lat: null,
+    qr_origin_lng: null,
+    qr_generated_by: null,
   };
 }
 
@@ -61,7 +73,9 @@ function buildAttendanceToken(classId: string, subject: string, topic: string | 
 export async function getClasses(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("classes")
-    .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
+    .select(
+      "id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by"
+    )
     .order("name");
 
   if (!error) {
@@ -197,9 +211,14 @@ export async function createClassSession(
       qr_code: qrToken,
       qr_updated_at: nowIso,
       qr_expires_at: expiresAt,
+      qr_origin_lat: options.latitude,
+      qr_origin_lng: options.longitude,
+      qr_generated_by: options.generatedByUserId,
       active: true,
     })
-    .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
+    .select(
+      "id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by"
+    )
     .single();
 
   if (!customInsert.error && customInsert.data) {
@@ -210,33 +229,13 @@ export async function createClassSession(
     throw toDbError(customInsert.error, "Unable to create class session", "classes");
   }
 
-  const fallbackInsert = await supabase
-    .from("classes")
-    .insert({
-      name,
-      qr_code: qrToken,
-      active: true,
-    })
-    .select("id, name, qr_code, active")
-    .single();
-
-  if (fallbackInsert.error || !fallbackInsert.data) {
-    throw toDbError(fallbackInsert.error, "Unable to create class session", "classes");
-  }
-
-  return {
-    ...withClassDefaults(fallbackInsert.data as LegacyClassRow),
-    subject,
-    current_topic: topic,
-    qr_updated_at: nowIso,
-    qr_expires_at: expiresAt,
-  };
+  throw new Error("Attendance proximity enforcement requires the latest database migration");
 }
 
 export async function rotateClassQrCode(
   supabase: SupabaseClient,
   classId: string,
-  options: RotateQrOptions = {}
+  options: RotateQrOptions
 ) {
   let supportsCustomColumns = true;
   let currentSubject = "General";
@@ -268,16 +267,21 @@ export async function rotateClassQrCode(
     const customUpdate = await supabase
       .from("classes")
       .update({
-        qr_code: qrToken,
-        subject,
-        current_topic: topic,
-        qr_updated_at: nowIso,
-        qr_expires_at: expiresAt,
-        active: true,
-      })
-      .eq("id", classId)
-      .select("id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at")
-      .single();
+      qr_code: qrToken,
+      subject,
+      current_topic: topic,
+      qr_updated_at: nowIso,
+      qr_expires_at: expiresAt,
+      qr_origin_lat: options.latitude,
+      qr_origin_lng: options.longitude,
+      qr_generated_by: options.generatedByUserId,
+      active: true,
+    })
+    .eq("id", classId)
+    .select(
+      "id, name, qr_code, active, subject, current_topic, qr_updated_at, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by"
+    )
+    .single();
 
     if (!customUpdate.error && customUpdate.data) {
       return customUpdate.data as CampusClass;
@@ -288,37 +292,22 @@ export async function rotateClassQrCode(
     }
   }
 
-  const fallbackUpdate = await supabase
-    .from("classes")
-    .update({ qr_code: qrToken, active: true })
-    .eq("id", classId)
-    .select("id, name, qr_code, active")
-    .single();
-
-  if (fallbackUpdate.error || !fallbackUpdate.data) {
-    throw toDbError(fallbackUpdate.error, "Unable to rotate QR code", "classes");
-  }
-
-  return {
-    ...withClassDefaults(fallbackUpdate.data as LegacyClassRow),
-    subject,
-    current_topic: topic,
-    qr_updated_at: nowIso,
-    qr_expires_at: expiresAt,
-  };
+  throw new Error("Attendance proximity enforcement requires the latest database migration");
 }
 
 export async function markAttendance(
   supabase: SupabaseClient,
   userId: string,
   classId: string | null,
-  qrToken: string
+  qrToken: string,
+  latitude: number,
+  longitude: number
 ) {
   const normalizedToken = qrToken.trim();
 
   let classQuery = supabase
     .from("classes")
-    .select("id, name, qr_code, active, subject, current_topic, qr_expires_at");
+    .select("id, name, qr_code, active, subject, current_topic, qr_expires_at, qr_origin_lat, qr_origin_lng, qr_generated_by");
 
   classQuery = classId ? classQuery.eq("id", classId) : classQuery.eq("qr_code", normalizedToken);
 
@@ -331,6 +320,9 @@ export async function markAttendance(
         qr_code: string;
         active: boolean;
         qr_expires_at?: string | null;
+        qr_origin_lat?: number | null;
+        qr_origin_lng?: number | null;
+        qr_generated_by?: string | null;
       }
     | null = null;
 
@@ -367,6 +359,27 @@ export async function markAttendance(
     throw new Error("QR token expired. Ask faculty to generate a new one");
   }
 
+  if (
+    typeof classRow.qr_origin_lat !== "number" ||
+    typeof classRow.qr_origin_lng !== "number" ||
+    !classRow.qr_generated_by
+  ) {
+    throw new Error("QR origin unavailable. Ask faculty to refresh the classroom QR");
+  }
+
+  const distanceMeters = calculateDistanceMeters(
+    latitude,
+    longitude,
+    classRow.qr_origin_lat,
+    classRow.qr_origin_lng
+  );
+
+  if (distanceMeters > ATTENDANCE_PROXIMITY_RADIUS_METERS) {
+    throw new Error(
+      `You must be within ${ATTENDANCE_PROXIMITY_RADIUS_METERS} meters of the faculty QR location to mark attendance`
+    );
+  }
+
   const today = startOfDay(new Date()).toISOString();
 
   const { data: existing, error: checkError } = await supabase
@@ -385,7 +398,7 @@ export async function markAttendance(
 
   const { data, error } = await supabase
     .from("attendance")
-    .insert({ user_id: userId, class_id: classRow.id })
+    .insert({ user_id: userId, class_id: classRow.id, marked_by: classRow.qr_generated_by })
     .select("id, user_id, class_id, timestamp")
     .single();
 

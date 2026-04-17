@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useRealtimeBuses } from "@/hooks/use-realtime-buses";
+import { getErrorMessage } from "@/lib/errors";
 import { type Bus, type PickupSource } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -76,7 +77,7 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to update driver session");
+          throw new Error(getErrorMessage(payload.error, "Unable to update driver session"));
         }
 
         applyUpdatedBus(payload.data as Bus);

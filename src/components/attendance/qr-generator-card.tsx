@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { RefreshCw } from "lucide-react";
+import { MapPin, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { getCurrentBrowserLocation } from "@/lib/geolocation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { formatDateTime } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errors";
+import { ATTENDANCE_PROXIMITY_RADIUS_METERS, formatDateTime } from "@/lib/utils";
 
 type QrGeneratorCardProps = {
   classId: string;
@@ -69,6 +71,7 @@ export function QrGeneratorCard({
 
     startTransition(async () => {
       try {
+        const location = await getCurrentBrowserLocation();
         const res = await fetch(`/api/classes/${classId}/rotate-qr`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -76,13 +79,15 @@ export function QrGeneratorCard({
             subject: subject.trim(),
             topic: topic.trim() ? topic.trim() : null,
             expiresInMinutes: parsedMinutes,
+            lat: location.lat,
+            lng: location.lng,
           }),
         });
 
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Failed to refresh QR");
+          throw new Error(getErrorMessage(payload.error, "Failed to refresh QR"));
         }
 
         const nextToken = payload.data.qr_code as string;
@@ -104,6 +109,14 @@ export function QrGeneratorCard({
         <CardDescription>Customize attendance QR by subject and lecture topic.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="bg-muted/60 flex gap-2 rounded-lg border p-3 text-sm">
+          <MapPin className="text-primary mt-0.5 size-4 shrink-0" />
+          <p className="text-muted-foreground">
+            Refreshing the QR anchors attendance to your current classroom position. Students outside{" "}
+            {ATTENDANCE_PROXIMITY_RADIUS_METERS} meters will be blocked.
+          </p>
+        </div>
+
         <div className="grid gap-3">
           <div className="space-y-1">
             <Label htmlFor={`subject-${classId}`}>Subject</Label>

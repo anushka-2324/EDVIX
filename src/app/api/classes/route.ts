@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { createClassSession, getClasses } from "@/services/attendance";
 
 const schema = z.object({
@@ -8,6 +9,8 @@ const schema = z.object({
   subject: z.string().min(2).max(80).optional(),
   topic: z.string().min(2).max(120).nullable().optional(),
   expiresInMinutes: z.number().int().min(5).max(180).optional(),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
 });
 
 export async function GET() {
@@ -21,10 +24,7 @@ export async function GET() {
     const data = await getClasses(auth.supabase);
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch classes" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(error, "Unable to fetch classes") }, { status: 500 });
   }
 }
 
@@ -44,14 +44,22 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+      return NextResponse.json(
+        { error: getErrorMessage(parsed.error.flatten().fieldErrors, "Invalid class payload") },
+        { status: 400 }
+      );
     }
 
-    const data = await createClassSession(auth.supabase, parsed.data);
+    const data = await createClassSession(auth.supabase, {
+      ...parsed.data,
+      latitude: parsed.data.lat,
+      longitude: parsed.data.lng,
+      generatedByUserId: auth.user.id,
+    });
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create class session" },
+      { error: getErrorMessage(error, "Unable to create class session") },
       { status: 500 }
     );
   }

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getErrorMessage } from "@/lib/errors";
 import { type Issue, type UserRole } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -51,13 +52,13 @@ export function IssuesTable({ role, issues }: IssuesTableProps) {
 
         const payload = await res.json();
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to update issue status");
+          throw new Error(getErrorMessage(payload.error, "Unable to update issue status"));
         }
 
         toast.success("Issue status updated");
         router.refresh();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Status update failed");
+        toast.error(getErrorMessage(error, "Status update failed"));
       }
     });
   };
@@ -73,12 +74,12 @@ export function IssuesTable({ role, issues }: IssuesTableProps) {
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to load history");
+          throw new Error(getErrorMessage(payload.error, "Unable to load history"));
         }
 
         setHistory((current) => ({ ...current, [issueId]: payload.history as IssueHistoryEntry[] }));
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not fetch history");
+        toast.error(getErrorMessage(error, "Could not fetch history"));
       }
     });
   };

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRealtimeParking } from "@/hooks/use-realtime-parking";
+import { getErrorMessage } from "@/lib/errors";
 import { type ParkingLot, type UserRole } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 
@@ -55,7 +56,7 @@ export function ParkingManager({ initialLots, role }: ParkingManagerProps) {
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to refresh parking data");
+          throw new Error(getErrorMessage(payload.error, "Unable to refresh parking data"));
         }
 
         setLots(payload.data as ParkingLot[]);
@@ -73,7 +74,7 @@ export function ParkingManager({ initialLots, role }: ParkingManagerProps) {
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to simulate parking");
+          throw new Error(getErrorMessage(payload.error, "Unable to simulate parking"));
         }
 
         setLots(payload.data as ParkingLot[]);
@@ -110,7 +111,7 @@ export function ParkingManager({ initialLots, role }: ParkingManagerProps) {
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to update occupancy");
+          throw new Error(getErrorMessage(payload.error, "Unable to update occupancy"));
         }
 
         const updated = payload.data as ParkingLot;

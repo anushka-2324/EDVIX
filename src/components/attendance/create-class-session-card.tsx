@@ -2,13 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, MapPin, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
+import { getCurrentBrowserLocation } from "@/lib/geolocation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { getErrorMessage } from "@/lib/errors";
+import { ATTENDANCE_PROXIMITY_RADIUS_METERS } from "@/lib/utils";
 
 export function CreateClassSessionCard() {
   const router = useRouter();
@@ -38,6 +41,7 @@ export function CreateClassSessionCard() {
 
     startTransition(async () => {
       try {
+        const location = await getCurrentBrowserLocation();
         const res = await fetch("/api/classes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -46,13 +50,15 @@ export function CreateClassSessionCard() {
             subject: subject.trim(),
             topic: topic.trim() ? topic.trim() : null,
             expiresInMinutes: parsedMinutes,
+            lat: location.lat,
+            lng: location.lng,
           }),
         });
 
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to create class session");
+          throw new Error(getErrorMessage(payload.error, "Unable to create class session"));
         }
 
         toast.success("Class session created. Customize QR below.");
@@ -72,6 +78,14 @@ export function CreateClassSessionCard() {
         <CardDescription>Create your class first, then customize and rotate live QR instantly.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="bg-muted/60 flex gap-2 rounded-lg border p-3 text-sm">
+          <MapPin className="text-primary mt-0.5 size-4 shrink-0" />
+          <p className="text-muted-foreground">
+            Your current location is captured when the session is created. Students must be within{" "}
+            {ATTENDANCE_PROXIMITY_RADIUS_METERS} meters of that QR origin to mark attendance.
+          </p>
+        </div>
+
         <div className="space-y-1">
           <Label htmlFor="class-name">Class Name</Label>
           <Input

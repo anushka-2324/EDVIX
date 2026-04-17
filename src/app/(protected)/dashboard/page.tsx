@@ -106,8 +106,9 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="text-muted-foreground space-y-2 text-sm">
               <p>1. Select the class and verify the live subject/topic.</p>
-              <p>2. Scan faculty QR or paste token from classroom screen.</p>
-              <p>3. Submit once, duplicate marking is blocked automatically.</p>
+              <p>2. Stay within 9 meters of the faculty QR location and allow location access.</p>
+              <p>3. Scan faculty QR or paste token from classroom screen.</p>
+              <p>4. Submit once, duplicate marking is blocked automatically.</p>
             </CardContent>
           </Card>
         </section>

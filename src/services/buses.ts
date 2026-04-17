@@ -22,10 +22,27 @@ type LegacyBusRow = {
 };
 
 const BUS_EXTENDED_COLUMNS = ["pickup_area", "pickup_source", "driver_id"] as const;
+const TRANSPORT_PREFERENCE_PREFERRED_COLUMNS = ["preferred_area", "preferred_source"] as const;
 
 function isLegacyBusColumnsError(error: unknown) {
   return BUS_EXTENDED_COLUMNS.some((column) => isMissingColumnError(error, "buses", column));
 }
+
+function isLegacyTransportPreferenceColumnsError(error: unknown) {
+  return TRANSPORT_PREFERENCE_PREFERRED_COLUMNS.some((column) =>
+    isMissingColumnError(error, "transport_preferences", column)
+  );
+}
+
+type TransportPreferenceRow = {
+  user_id: string;
+  preferred_bus_id: string | null;
+  updated_at: string;
+  preferred_area?: string | null;
+  preferred_source?: PickupSource | null;
+  pickup_area?: string | null;
+  pickup_source?: PickupSource | null;
+};
 
 function normalizeBus(row: LegacyBusRow & Partial<Pick<Bus, "pickup_area" | "pickup_source" | "driver_id">>): Bus {
   return {
@@ -47,6 +64,16 @@ function defaultPreference(userId: string): TransportPreference {
     preferred_area: null,
     preferred_source: null,
     updated_at: new Date().toISOString(),
+  };
+}
+
+function normalizeTransportPreference(row: TransportPreferenceRow): TransportPreference {
+  return {
+    user_id: row.user_id,
+    preferred_bus_id: row.preferred_bus_id,
+    preferred_area: row.preferred_area ?? row.pickup_area ?? null,
+    preferred_source: (row.preferred_source ?? row.pickup_source ?? null) as PickupSource | null,
+    updated_at: row.updated_at,
   };
 }
 
@@ -138,31 +165,47 @@ export async function getDriverAssignedBus(supabase: SupabaseClient, driverId: s
 }
 
 export async function getUserTransportPreference(supabase: SupabaseClient, userId: string) {
-  const res = await supabase
+  const preferredRes = await supabase
     .from("transport_preferences")
     .select("user_id, preferred_bus_id, preferred_area, preferred_source, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!res.error) {
-    if (!res.data) {
+  if (!preferredRes.error) {
+    if (!preferredRes.data) {
       return defaultPreference(userId);
     }
 
-    return {
-      user_id: res.data.user_id,
-      preferred_bus_id: res.data.preferred_bus_id,
-      preferred_area: res.data.preferred_area,
-      preferred_source: (res.data.preferred_source ?? null) as PickupSource | null,
-      updated_at: res.data.updated_at,
-    } as TransportPreference;
+    return normalizeTransportPreference(preferredRes.data as TransportPreferenceRow);
   }
 
-  if (isMissingTableError(res.error, "transport_preferences")) {
+  if (isMissingTableError(preferredRes.error, "transport_preferences")) {
     return defaultPreference(userId);
   }
 
-  throw toDbError(res.error, "Unable to load transport preference", "transport_preferences");
+  if (!isLegacyTransportPreferenceColumnsError(preferredRes.error)) {
+    throw toDbError(preferredRes.error, "Unable to load transport preference", "transport_preferences");
+  }
+
+  const legacyRes = await supabase
+    .from("transport_preferences")
+    .select("user_id, preferred_bus_id, pickup_area, pickup_source, updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (legacyRes.error) {
+    if (isMissingTableError(legacyRes.error, "transport_preferences")) {
+      return defaultPreference(userId);
+    }
+
+    throw toDbError(legacyRes.error, "Unable to load transport preference", "transport_preferences");
+  }
+
+  if (!legacyRes.data) {
+    return defaultPreference(userId);
+  }
+
+  return normalizeTransportPreference(legacyRes.data as TransportPreferenceRow);
 }
 
 export async function updateUserTransportPreference(
@@ -174,31 +217,49 @@ export async function updateUserTransportPreference(
     preferred_source?: PickupSource | null;
   }
 ) {
-  const upsertPayload = {
+  const nowIso = new Date().toISOString();
+
+  const preferredPayload = {
     user_id: userId,
     preferred_bus_id: payload.preferred_bus_id ?? null,
     preferred_area: payload.preferred_area ?? null,
     preferred_source: payload.preferred_source ?? null,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
-  const res = await supabase
+  const preferredRes = await supabase
     .from("transport_preferences")
-    .upsert(upsertPayload, { onConflict: "user_id" })
+    .upsert(preferredPayload, { onConflict: "user_id" })
     .select("user_id, preferred_bus_id, preferred_area, preferred_source, updated_at")
     .single();
 
-  if (res.error || !res.data) {
-    throw toDbError(res.error, "Unable to save transport preference", "transport_preferences");
+  if (!preferredRes.error && preferredRes.data) {
+    return normalizeTransportPreference(preferredRes.data as TransportPreferenceRow);
   }
 
-  return {
-    user_id: res.data.user_id,
-    preferred_bus_id: res.data.preferred_bus_id,
-    preferred_area: res.data.preferred_area,
-    preferred_source: (res.data.preferred_source ?? null) as PickupSource | null,
-    updated_at: res.data.updated_at,
-  } as TransportPreference;
+  if (!isLegacyTransportPreferenceColumnsError(preferredRes.error)) {
+    throw toDbError(preferredRes.error, "Unable to save transport preference", "transport_preferences");
+  }
+
+  const legacyPayload = {
+    user_id: userId,
+    preferred_bus_id: payload.preferred_bus_id ?? null,
+    pickup_area: payload.preferred_area ?? null,
+    pickup_source: payload.preferred_source ?? null,
+    updated_at: nowIso,
+  };
+
+  const legacyRes = await supabase
+    .from("transport_preferences")
+    .upsert(legacyPayload, { onConflict: "user_id" })
+    .select("user_id, preferred_bus_id, pickup_area, pickup_source, updated_at")
+    .single();
+
+  if (legacyRes.error || !legacyRes.data) {
+    throw toDbError(legacyRes.error, "Unable to save transport preference", "transport_preferences");
+  }
+
+  return normalizeTransportPreference(legacyRes.data as TransportPreferenceRow);
 }
 
 export async function upsertDriverBusSession(supabase: SupabaseClient, payload: DriverSessionPayload) {

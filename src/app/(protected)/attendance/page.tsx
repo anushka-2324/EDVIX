@@ -24,7 +24,7 @@ export default async function AttendancePage() {
       <div>
         <h1 className="text-2xl font-semibold">QR Attendance System</h1>
         <p className="text-muted-foreground text-sm">
-          Dynamic class QR generation, secure student scan, and duplicate-safe check-ins.
+          Dynamic class QR generation with location-verified student check-ins inside the classroom radius.
         </p>
       </div>
 
@@ -38,8 +38,9 @@ export default async function AttendancePage() {
             </CardHeader>
             <CardContent className="text-muted-foreground space-y-2 text-sm">
               <p>1. Select class and verify live subject/topic from faculty session.</p>
-              <p>2. Scan QR token using camera or paste token manually.</p>
-              <p>3. Submit once. Duplicate check-ins for same day are blocked.</p>
+              <p>2. Stay within 9 meters of the faculty who generated the QR.</p>
+              <p>3. Scan QR token using camera or paste token manually, then allow location access.</p>
+              <p>4. Submit once. Duplicate check-ins for same day are blocked.</p>
             </CardContent>
           </Card>
         </div>
@@ -54,8 +55,9 @@ export default async function AttendancePage() {
               </CardHeader>
               <CardContent className="text-muted-foreground space-y-2 text-sm">
                 <p>1. Create your class session from the left card.</p>
-                <p>2. Use the generated class card to customize subject/topic and rotate QR.</p>
-                <p>3. Students can scan from Attendance or Dashboard in real time.</p>
+                <p>2. Generate or refresh the QR only after you are in the classroom so your location is captured.</p>
+                <p>3. Use the generated class card to customize subject/topic and rotate QR.</p>
+                <p>4. Students farther than 9 meters from your QR origin will be blocked automatically.</p>
               </CardContent>
             </Card>
           </div>

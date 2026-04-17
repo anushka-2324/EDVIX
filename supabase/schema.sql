@@ -23,6 +23,9 @@ create table if not exists public.classes (
   qr_code text not null,
   qr_updated_at timestamptz not null default now(),
   qr_expires_at timestamptz,
+  qr_origin_lat double precision,
+  qr_origin_lng double precision,
+  qr_generated_by uuid references public.users(id) on delete set null,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -38,6 +41,9 @@ update public.classes set qr_updated_at = now() where qr_updated_at is null;
 alter table public.classes alter column qr_updated_at set default now();
 alter table public.classes alter column qr_updated_at set not null;
 alter table public.classes add column if not exists qr_expires_at timestamptz;
+alter table public.classes add column if not exists qr_origin_lat double precision;
+alter table public.classes add column if not exists qr_origin_lng double precision;
+alter table public.classes add column if not exists qr_generated_by uuid references public.users(id) on delete set null;
 
 create table if not exists public.attendance (
   id uuid primary key default gen_random_uuid(),
@@ -152,12 +158,22 @@ create table if not exists public.notifications (
 
 create or replace function public.current_user_role()
 returns text
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
-  select role from public.users where id = auth.uid() limit 1;
+declare
+  current_role text;
+begin
+  select role into current_role
+  from public.users
+  where id = auth.uid()
+  limit 1;
+
+  return current_role;
+end;
 $$;
 
 create or replace function public.is_valid_college_email(email_input text)

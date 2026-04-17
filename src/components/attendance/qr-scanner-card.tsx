@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
-import { Camera, CheckCircle2 } from "lucide-react";
+import { Camera, CheckCircle2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
+import { getCurrentBrowserLocation } from "@/lib/geolocation";
 import { type CampusClass } from "@/lib/types";
-import { formatDateTime } from "@/lib/utils";
+import { ATTENDANCE_PROXIMITY_RADIUS_METERS, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,16 +118,22 @@ export function QrScannerCard({
   const submitAttendance = () => {
     startTransition(async () => {
       try {
+        const location = await getCurrentBrowserLocation();
         const res = await fetch("/api/attendance/mark", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ classId: classId || null, qrToken }),
+          body: JSON.stringify({
+            classId: classId || null,
+            qrToken,
+            lat: location.lat,
+            lng: location.lng,
+          }),
         });
 
         const payload = await res.json();
 
         if (!res.ok) {
-          throw new Error(payload.error ?? "Unable to mark attendance");
+          throw new Error(getErrorMessage(payload.error, "Unable to mark attendance"));
         }
 
         toast.success("Attendance marked successfully");
@@ -146,6 +154,14 @@ export function QrScannerCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className={compact ? "space-y-3" : "space-y-4"}>
+        <div className="bg-muted/60 flex gap-2 rounded-lg border p-3 text-sm">
+          <MapPin className="text-primary mt-0.5 size-4 shrink-0" />
+          <p className="text-muted-foreground">
+            Location permission is required. Attendance is only marked when you are within{" "}
+            {ATTENDANCE_PROXIMITY_RADIUS_METERS} meters of the faculty QR location.
+          </p>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="class">Class</Label>
           <Select

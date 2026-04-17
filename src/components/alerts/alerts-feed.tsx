@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeAlerts } from "@/hooks/use-realtime-alerts";
+import { getErrorMessage } from "@/lib/errors";
 import { type Alert, type AlertType, type Notification, type UserRole } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -61,7 +62,7 @@ export function AlertsFeed({ role, initialAlerts, initialNotifications }: Alerts
 
         const payload = await res.json();
         if (!res.ok) {
-          throw new Error(payload.error ?? "Failed to broadcast alert");
+          throw new Error(getErrorMessage(payload.error, "Failed to broadcast alert"));
         }
 
         setTitle("");

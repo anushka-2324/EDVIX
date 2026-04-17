@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { getUserTransportPreference, updateUserTransportPreference } from "@/services/buses";
 
 const schema = z.object({
@@ -21,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch transport preferences" },
+      { error: getErrorMessage(error, "Unable to fetch transport preferences") },
       { status: 500 }
     );
   }
@@ -39,7 +40,10 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+      return NextResponse.json(
+        { error: getErrorMessage(parsed.error.flatten().fieldErrors, "Invalid transport preference payload") },
+        { status: 400 }
+      );
     }
 
     const data = await updateUserTransportPreference(auth.supabase, auth.user.id, {
@@ -51,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to update transport preferences" },
+      { error: getErrorMessage(error, "Unable to update transport preferences") },
       { status: 500 }
     );
   }

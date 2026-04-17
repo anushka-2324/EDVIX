@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { createAlert, getAlerts } from "@/services/alerts";
 
 const alertSchema = z.object({
@@ -19,10 +20,7 @@ export async function GET() {
     const data = await getAlerts(auth.supabase);
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch alerts" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(error, "Unable to fetch alerts") }, { status: 500 });
   }
 }
 
@@ -41,15 +39,15 @@ export async function POST(request: Request) {
     const parsed = alertSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+      return NextResponse.json(
+        { error: getErrorMessage(parsed.error.flatten().fieldErrors, "Invalid alert payload") },
+        { status: 400 }
+      );
     }
 
     const data = await createAlert(auth.supabase, parsed.data);
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create alert" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(error, "Unable to create alert") }, { status: 500 });
   }
 }

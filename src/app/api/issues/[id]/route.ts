@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { getIssueHistory } from "@/services/issues";
 
 export async function GET(
@@ -14,11 +15,11 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const history = await getIssueHistory(auth.supabase, id);
+    const history = await getIssueHistory(auth.supabase, id, auth.user.id, auth.profile.role);
     return NextResponse.json({ history });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to fetch issue history" },
+      { error: getErrorMessage(error, "Unable to fetch issue history") },
       { status: 500 }
     );
   }
