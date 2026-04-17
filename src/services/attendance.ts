@@ -240,6 +240,32 @@ export async function getAttendanceLogs(
     throw toDbError(subjectStatusRes.error, "Unable to load attendance logs");
   }
 
+  let statusOnlyQuery = supabase
+    .from("attendance")
+    .select("id, user_id, class_id, timestamp, status, class:classes(id, name, subject)")
+    .order("timestamp", { ascending: false })
+    .limit(30);
+
+  if (role === "student") {
+    statusOnlyQuery = statusOnlyQuery.eq("user_id", userId);
+  }
+
+  const statusOnlyRes = await statusOnlyQuery;
+
+  if (!statusOnlyRes.error) {
+    return normalize((statusOnlyRes.data ?? []) as Array<Record<string, unknown>>, {
+      forceNullTopic: true,
+    });
+  }
+
+  if (isMissingTableError(statusOnlyRes.error, "attendance") || isMissingTableError(statusOnlyRes.error, "classes")) {
+    return [];
+  }
+
+  if (!isLegacyClassesError(statusOnlyRes.error) && !isLegacyAttendanceError(statusOnlyRes.error)) {
+    throw toDbError(statusOnlyRes.error, "Unable to load attendance logs");
+  }
+
   let subjectOnlyQuery = supabase
     .from("attendance")
     .select("id, user_id, class_id, timestamp, class:classes(id, name, subject)")
@@ -702,35 +728,52 @@ export async function markAttendanceByFaculty(
   supabase: SupabaseClient,
   options: ManualAttendanceOptions
 ) {
-  const dayStart = options.attendanceDate
-    ? startOfDay(new Date(options.attendanceDate)).toISOString()
-    : startOfDay(new Date()).toISOString();
+  const resolveAttendanceDate = () => {
+    if (!options.attendanceDate) {
+      return new Date();
+    }
+
+    const [year, month, day] = options.attendanceDate.split("-").map(Number);
+    if (Number.isInteger(year) && Number.isInteger(month) && Number.isInteger(day)) {
+      return new Date(year, month - 1, day);
+    }
+
+    const parsed = new Date(options.attendanceDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return new Date();
+    }
+
+    return parsed;
+  };
+
+  const dayStart = startOfDay(resolveAttendanceDate()).toISOString();
 
   const dayEndDate = new Date(dayStart);
   dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
   const dayEnd = dayEndDate.toISOString();
 
-  const { data: existing, error: existingError } = await supabase
+  const { data: existingRows, error: existingError } = await supabase
     .from("attendance")
-    .select("id")
+    .select("id, timestamp")
     .eq("user_id", options.studentId)
     .eq("class_id", options.classId)
     .gte("timestamp", dayStart)
     .lt("timestamp", dayEnd)
-    .limit(1)
-    .maybeSingle();
+    .order("timestamp", { ascending: false });
 
   if (existingError) {
     throw toDbError(existingError, "Unable to check existing attendance", "attendance");
   }
 
-  if (existing) {
-    const { data: updated, error: updateError } = await supabase
+  if (existingRows?.length) {
+    const { data: updatedRows, error: updateError } = await supabase
       .from("attendance")
       .update({ status: options.status })
-      .eq("id", existing.id)
-      .select("id, user_id, class_id, timestamp, status")
-      .single();
+      .eq("user_id", options.studentId)
+      .eq("class_id", options.classId)
+      .gte("timestamp", dayStart)
+      .lt("timestamp", dayEnd)
+      .select("id, user_id, class_id, timestamp, status");
 
     if (updateError) {
       if (isMissingColumnError(updateError, "attendance", "status")) {
@@ -738,19 +781,13 @@ export async function markAttendanceByFaculty(
           throw new Error("Absent marking requires latest schema. Please run supabase/schema.sql");
         }
 
-        const { data: legacyUpdated, error: legacyUpdateError } = await supabase
-          .from("attendance")
-          .update({ timestamp: new Date().toISOString() })
-          .eq("id", existing.id)
-          .select("id, user_id, class_id, timestamp")
-          .single();
-
-        if (legacyUpdateError) {
-          throw toDbError(legacyUpdateError, "Unable to update attendance", "attendance");
-        }
+        const latestExisting = existingRows[0] as { id: string; timestamp: string };
 
         return {
-          ...legacyUpdated,
+          id: latestExisting.id,
+          user_id: options.studentId,
+          class_id: options.classId,
+          timestamp: latestExisting.timestamp,
           status: "present" as const,
         };
       }
@@ -758,7 +795,22 @@ export async function markAttendanceByFaculty(
       throw toDbError(updateError, "Unable to update attendance", "attendance");
     }
 
-    return updated;
+    const latestUpdated = (updatedRows ?? [])[0] as
+      | { id: string; user_id: string; class_id: string; timestamp: string; status: "present" | "absent" }
+      | undefined;
+
+    if (latestUpdated) {
+      return latestUpdated;
+    }
+
+    const latestExisting = existingRows[0] as { id: string; timestamp: string };
+    return {
+      id: latestExisting.id,
+      user_id: options.studentId,
+      class_id: options.classId,
+      timestamp: latestExisting.timestamp,
+      status: options.status,
+    };
   }
 
   const { data: inserted, error: insertError } = await supabase
