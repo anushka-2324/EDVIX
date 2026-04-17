@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { CreateClassSessionCard } from "@/components/attendance/create-class-session-card";
+import { FacultyAttendanceManager } from "@/components/attendance/faculty-attendance-manager";
 import { QrGeneratorCard } from "@/components/attendance/qr-generator-card";
 import { QrScannerCard } from "@/components/attendance/qr-scanner-card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
@@ -61,6 +62,8 @@ export default async function AttendancePage() {
               </CardContent>
             </Card>
           </div>
+
+          <FacultyAttendanceManager classes={classes} />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {classes.map((classItem) => (

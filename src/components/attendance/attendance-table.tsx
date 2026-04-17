@@ -13,7 +13,7 @@ export function AttendanceTable({ logs }: AttendanceTableProps) {
     <Card>
       <CardHeader>
         <CardTitle>Attendance Logs</CardTitle>
-        <CardDescription>Latest check-ins from QR attendance system.</CardDescription>
+        <CardDescription>Latest attendance entries from QR and faculty controls.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -36,7 +36,9 @@ export function AttendanceTable({ logs }: AttendanceTableProps) {
                   </TableCell>
                   <TableCell>{formatDateTime(log.timestamp)}</TableCell>
                   <TableCell>
-                    <Badge variant="success">Present</Badge>
+                    <Badge variant={log.status === "absent" ? "destructive" : "success"}>
+                      {log.status === "absent" ? "Absent" : "Present"}
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))

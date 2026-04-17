@@ -118,6 +118,30 @@ export async function getClasses(supabase: SupabaseClient) {
       throw toDbError(noProximityRes.error, "Unable to load classes", "classes");
     }
 
+    const subjectTopicRes = await supabase
+      .from("classes")
+      .select("id, name, qr_code, active, subject, current_topic")
+      .order("name");
+
+    if (!subjectTopicRes.error) {
+      return (subjectTopicRes.data ?? []).map((classRow) => ({
+        ...(classRow as Omit<CampusClass, "qr_updated_at" | "qr_expires_at" | "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+        qr_updated_at: null,
+        qr_expires_at: null,
+        qr_origin_lat: null,
+        qr_origin_lng: null,
+        qr_generated_by: null,
+      }));
+    }
+
+    if (isMissingTableError(subjectTopicRes.error, "classes")) {
+      return [];
+    }
+
+    if (!isLegacyClassesError(subjectTopicRes.error)) {
+      throw toDbError(subjectTopicRes.error, "Unable to load classes", "classes");
+    }
+
     const legacyRes = await supabase.from("classes").select("id, name, qr_code, active").order("name");
     if (legacyRes.error) {
       if (isMissingTableError(legacyRes.error, "classes")) {
@@ -138,82 +162,136 @@ export async function getAttendanceLogs(
   userId: string,
   role: UserRole
 ) {
-  let query = supabase
+  const normalize = (
+    rows: Array<Record<string, unknown>>,
+    options?: { fallbackSubject?: string; forceNullTopic?: boolean; fallbackStatus?: "present" | "absent" }
+  ) => {
+    return rows.map((entry) => {
+      const classRaw = entry.class;
+      const classData = Array.isArray(classRaw) ? classRaw[0] : classRaw;
+      const classRecord = classData && typeof classData === "object" ? (classData as Record<string, unknown>) : null;
+
+      return {
+        id: entry.id as string,
+        user_id: entry.user_id as string,
+        class_id: entry.class_id as string,
+        timestamp: entry.timestamp as string,
+        attendance_date: (entry.attendance_date as string | undefined) ?? undefined,
+        status: ((entry.status as "present" | "absent" | undefined) ?? options?.fallbackStatus ?? "present") as
+          | "present"
+          | "absent",
+        class: classRecord
+          ? {
+              id: classRecord.id as string,
+              name: classRecord.name as string,
+              subject: (classRecord.subject as string | undefined) ?? options?.fallbackSubject ?? "General",
+              current_topic: options?.forceNullTopic ? null : ((classRecord.current_topic as string | null | undefined) ?? null),
+            }
+          : undefined,
+      } as AttendanceLog;
+    });
+  };
+
+  let fullQuery = supabase
     .from("attendance")
-    .select("id, user_id, class_id, timestamp, class:classes(id, name, subject, current_topic)")
+    .select("id, user_id, class_id, timestamp, attendance_date, status, class:classes(id, name, subject, current_topic)")
     .order("timestamp", { ascending: false })
     .limit(30);
 
   if (role === "student") {
-    query = query.eq("user_id", userId);
+    fullQuery = fullQuery.eq("user_id", userId);
   }
 
-  const { data, error } = await query;
-  if (!error) {
-    const normalized = (data ?? []).map((entry) => {
-      const classData = Array.isArray(entry.class) ? entry.class[0] : entry.class;
+  const fullRes = await fullQuery;
 
-      return {
-        ...entry,
-        class: classData
-          ? {
-              id: classData.id,
-              name: classData.name,
-              subject: classData.subject,
-              current_topic: classData.current_topic,
-            }
-          : undefined,
-      };
-    });
-
-    return normalized as AttendanceLog[];
+  if (!fullRes.error) {
+    return normalize((fullRes.data ?? []) as Array<Record<string, unknown>>);
   }
 
-  if (isMissingTableError(error, "attendance") || isMissingTableError(error, "classes")) {
+  if (isMissingTableError(fullRes.error, "attendance") || isMissingTableError(fullRes.error, "classes")) {
     return [];
   }
 
-  if (isLegacyClassesError(error)) {
-    let legacyQuery = supabase
-      .from("attendance")
-      .select("id, user_id, class_id, timestamp, class:classes(id, name)")
-      .order("timestamp", { ascending: false })
-      .limit(30);
-
-    if (role === "student") {
-      legacyQuery = legacyQuery.eq("user_id", userId);
-    }
-
-    const legacyRes = await legacyQuery;
-
-    if (legacyRes.error) {
-      if (isMissingTableError(legacyRes.error, "attendance") || isMissingTableError(legacyRes.error, "classes")) {
-        return [];
-      }
-
-      throw toDbError(legacyRes.error, "Unable to load attendance logs");
-    }
-
-    const normalized = (legacyRes.data ?? []).map((entry) => {
-      const classData = Array.isArray(entry.class) ? entry.class[0] : entry.class;
-
-      return {
-        ...entry,
-        class: classData
-          ? {
-              id: classData.id,
-              name: classData.name,
-              subject: "General",
-              current_topic: null,
-            }
-          : undefined,
-      };
-    });
-
-    return normalized as AttendanceLog[];
+  if (!isLegacyClassesError(fullRes.error) && !isLegacyAttendanceError(fullRes.error)) {
+    throw toDbError(fullRes.error, "Unable to load attendance logs");
   }
 
-  throw toDbError(error, "Unable to load attendance logs");
+  let subjectStatusQuery = supabase
+    .from("attendance")
+    .select("id, user_id, class_id, timestamp, attendance_date, status, class:classes(id, name, subject)")
+    .order("timestamp", { ascending: false })
+    .limit(30);
+
+  if (role === "student") {
+    subjectStatusQuery = subjectStatusQuery.eq("user_id", userId);
+  }
+
+  const subjectStatusRes = await subjectStatusQuery;
+
+  if (!subjectStatusRes.error) {
+    return normalize((subjectStatusRes.data ?? []) as Array<Record<string, unknown>>, { forceNullTopic: true });
+  }
+
+  if (isMissingTableError(subjectStatusRes.error, "attendance") || isMissingTableError(subjectStatusRes.error, "classes")) {
+    return [];
+  }
+
+  if (!isLegacyClassesError(subjectStatusRes.error) && !isLegacyAttendanceError(subjectStatusRes.error)) {
+    throw toDbError(subjectStatusRes.error, "Unable to load attendance logs");
+  }
+
+  let subjectOnlyQuery = supabase
+    .from("attendance")
+    .select("id, user_id, class_id, timestamp, class:classes(id, name, subject)")
+    .order("timestamp", { ascending: false })
+    .limit(30);
+
+  if (role === "student") {
+    subjectOnlyQuery = subjectOnlyQuery.eq("user_id", userId);
+  }
+
+  const subjectOnlyRes = await subjectOnlyQuery;
+
+  if (!subjectOnlyRes.error) {
+    return normalize((subjectOnlyRes.data ?? []) as Array<Record<string, unknown>>, {
+      forceNullTopic: true,
+      fallbackStatus: "present",
+    });
+  }
+
+  if (isMissingTableError(subjectOnlyRes.error, "attendance") || isMissingTableError(subjectOnlyRes.error, "classes")) {
+    return [];
+  }
+
+  if (!isLegacyClassesError(subjectOnlyRes.error) && !isLegacyAttendanceError(subjectOnlyRes.error)) {
+    throw toDbError(subjectOnlyRes.error, "Unable to load attendance logs");
+  }
+
+  let legacyQuery = supabase
+    .from("attendance")
+    .select("id, user_id, class_id, timestamp, class:classes(id, name)")
+    .order("timestamp", { ascending: false })
+    .limit(30);
+
+  if (role === "student") {
+    legacyQuery = legacyQuery.eq("user_id", userId);
+  }
+
+  const legacyRes = await legacyQuery;
+
+  if (legacyRes.error) {
+    if (isMissingTableError(legacyRes.error, "attendance") || isMissingTableError(legacyRes.error, "classes")) {
+      return [];
+    }
+
+    throw toDbError(legacyRes.error, "Unable to load attendance logs");
+  }
+
+  return normalize((legacyRes.data ?? []) as Array<Record<string, unknown>>, {
+    fallbackSubject: "General",
+    forceNullTopic: true,
+    fallbackStatus: "present",
+  });
 }
 
 export async function createClassSession(
@@ -285,6 +363,33 @@ export async function createClassSession(
 
   if (noProximityInsert.error && !isLegacyClassesError(noProximityInsert.error)) {
     throw toDbError(noProximityInsert.error, "Unable to create class session", "classes");
+  }
+
+  const subjectTopicInsert = await supabase
+    .from("classes")
+    .insert({
+      name,
+      subject,
+      current_topic: topic,
+      qr_code: qrToken,
+      active: true,
+    })
+    .select("id, name, qr_code, active, subject, current_topic")
+    .single();
+
+  if (!subjectTopicInsert.error && subjectTopicInsert.data) {
+    return {
+      ...(subjectTopicInsert.data as Omit<CampusClass, "qr_updated_at" | "qr_expires_at" | "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+      qr_updated_at: null,
+      qr_expires_at: null,
+      qr_origin_lat: null,
+      qr_origin_lng: null,
+      qr_generated_by: options.generatedByUserId,
+    };
+  }
+
+  if (subjectTopicInsert.error && !isLegacyClassesError(subjectTopicInsert.error)) {
+    throw toDbError(subjectTopicInsert.error, "Unable to create class session", "classes");
   }
 
   const legacyInsert = await supabase
@@ -390,6 +495,33 @@ export async function rotateClassQrCode(
       if (noProximityUpdate.error && !isLegacyClassesError(noProximityUpdate.error)) {
         throw toDbError(noProximityUpdate.error, "Unable to rotate QR code", "classes");
       }
+    }
+
+    const subjectTopicUpdate = await supabase
+      .from("classes")
+      .update({
+        qr_code: qrToken,
+        subject,
+        current_topic: topic,
+        active: true,
+      })
+      .eq("id", classId)
+      .select("id, name, qr_code, active, subject, current_topic")
+      .single();
+
+    if (!subjectTopicUpdate.error && subjectTopicUpdate.data) {
+      return {
+        ...(subjectTopicUpdate.data as Omit<CampusClass, "qr_updated_at" | "qr_expires_at" | "qr_origin_lat" | "qr_origin_lng" | "qr_generated_by">),
+        qr_updated_at: null,
+        qr_expires_at: expiresAt,
+        qr_origin_lat: null,
+        qr_origin_lng: null,
+        qr_generated_by: options.generatedByUserId,
+      };
+    }
+
+    if (subjectTopicUpdate.error && !isLegacyClassesError(subjectTopicUpdate.error)) {
+      throw toDbError(subjectTopicUpdate.error, "Unable to rotate QR code", "classes");
     }
   }
 
@@ -539,4 +671,135 @@ export async function markAttendance(
   if (error) throw toDbError(error, "Unable to mark attendance", "attendance");
 
   return data;
+}
+
+export async function getAttendanceStudents(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, name, email")
+    .eq("role", "student")
+    .order("name", { ascending: true });
+
+  if (error) {
+    if (isMissingTableError(error, "users")) {
+      return [];
+    }
+
+    throw toDbError(error, "Unable to load students list", "users");
+  }
+
+  return (data ?? []) as Array<{ id: string; name: string; email: string }>;
+}
+
+type ManualAttendanceOptions = {
+  classId: string;
+  studentId: string;
+  status: "present" | "absent";
+  attendanceDate?: string;
+};
+
+export async function markAttendanceByFaculty(
+  supabase: SupabaseClient,
+  options: ManualAttendanceOptions
+) {
+  const dayStart = options.attendanceDate
+    ? startOfDay(new Date(options.attendanceDate)).toISOString()
+    : startOfDay(new Date()).toISOString();
+
+  const dayEndDate = new Date(dayStart);
+  dayEndDate.setUTCDate(dayEndDate.getUTCDate() + 1);
+  const dayEnd = dayEndDate.toISOString();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("attendance")
+    .select("id")
+    .eq("user_id", options.studentId)
+    .eq("class_id", options.classId)
+    .gte("timestamp", dayStart)
+    .lt("timestamp", dayEnd)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw toDbError(existingError, "Unable to check existing attendance", "attendance");
+  }
+
+  if (existing) {
+    const { data: updated, error: updateError } = await supabase
+      .from("attendance")
+      .update({ status: options.status })
+      .eq("id", existing.id)
+      .select("id, user_id, class_id, timestamp, status")
+      .single();
+
+    if (updateError) {
+      if (isMissingColumnError(updateError, "attendance", "status")) {
+        if (options.status === "absent") {
+          throw new Error("Absent marking requires latest schema. Please run supabase/schema.sql");
+        }
+
+        const { data: legacyUpdated, error: legacyUpdateError } = await supabase
+          .from("attendance")
+          .update({ timestamp: new Date().toISOString() })
+          .eq("id", existing.id)
+          .select("id, user_id, class_id, timestamp")
+          .single();
+
+        if (legacyUpdateError) {
+          throw toDbError(legacyUpdateError, "Unable to update attendance", "attendance");
+        }
+
+        return {
+          ...legacyUpdated,
+          status: "present" as const,
+        };
+      }
+
+      throw toDbError(updateError, "Unable to update attendance", "attendance");
+    }
+
+    return updated;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("attendance")
+    .insert({
+      user_id: options.studentId,
+      class_id: options.classId,
+      timestamp: new Date().toISOString(),
+      status: options.status,
+    })
+    .select("id, user_id, class_id, timestamp, status")
+    .single();
+
+  if (insertError) {
+    if (isMissingColumnError(insertError, "attendance", "status")) {
+      if (options.status === "absent") {
+        throw new Error("Absent marking requires latest schema. Please run supabase/schema.sql");
+      }
+
+      const { data: legacyInserted, error: legacyInsertError } = await supabase
+        .from("attendance")
+        .insert({
+          user_id: options.studentId,
+          class_id: options.classId,
+          timestamp: new Date().toISOString(),
+        })
+        .select("id, user_id, class_id, timestamp")
+        .single();
+
+      if (legacyInsertError) {
+        throw toDbError(legacyInsertError, "Unable to mark attendance", "attendance");
+      }
+
+      return {
+        ...legacyInserted,
+        status: "present" as const,
+      };
+    }
+
+    throw toDbError(insertError, "Unable to mark attendance", "attendance");
+  }
+
+  return inserted;
 }
