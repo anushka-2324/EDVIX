@@ -855,3 +855,47 @@ export async function markAttendanceByFaculty(
 
   return inserted;
 }
+
+export async function updateAttendanceStatusById(
+  supabase: SupabaseClient,
+  attendanceId: string,
+  status: "present" | "absent"
+) {
+  const { data: existing, error: existingError } = await supabase
+    .from("attendance")
+    .select("id, user_id, class_id, timestamp")
+    .eq("id", attendanceId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw toDbError(existingError, "Unable to load attendance entry", "attendance");
+  }
+
+  if (!existing) {
+    throw new Error("Attendance entry not found");
+  }
+
+  const { data, error } = await supabase
+    .from("attendance")
+    .update({ status })
+    .eq("id", attendanceId)
+    .select("id, user_id, class_id, timestamp, status")
+    .single();
+
+  if (error) {
+    if (isMissingColumnError(error, "attendance", "status")) {
+      if (status === "absent") {
+        throw new Error("Absent marking requires latest schema. Please run supabase/schema.sql");
+      }
+
+      return {
+        ...existing,
+        status: "present" as const,
+      };
+    }
+
+    throw toDbError(error, "Unable to update attendance", "attendance");
+  }
+
+  return data;
+}

@@ -24,6 +24,12 @@ export default async function DashboardPage() {
     profile.role === "student" ? getClasses(supabase) : Promise.resolve([]),
   ]);
 
+  const currentIso = new Date().toISOString();
+
+  const activeClasses = classes.filter(
+    (classItem) => !classItem.qr_expires_at || classItem.qr_expires_at > currentIso
+  );
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white">
@@ -93,7 +99,7 @@ export default async function DashboardPage() {
       {profile.role === "student" && (
         <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
           <QrScannerCard
-            classes={classes}
+            classes={activeClasses}
             compact
             title="Live Attendance Scanner"
             description="Scan faculty QR instantly from your dashboard and mark attendance in real time."

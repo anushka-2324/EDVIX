@@ -20,6 +20,12 @@ export default async function AttendancePage() {
     getAttendanceLogs(supabase, user.id, profile.role),
   ]);
 
+  const currentIso = new Date().toISOString();
+
+  const activeClasses = classes.filter(
+    (classItem) => !classItem.qr_expires_at || classItem.qr_expires_at > currentIso
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -31,7 +37,7 @@ export default async function AttendancePage() {
 
       {profile.role === "student" ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-          <QrScannerCard classes={classes} />
+          <QrScannerCard classes={activeClasses} />
           <Card>
             <CardHeader>
               <CardTitle>How it works</CardTitle>
@@ -66,7 +72,7 @@ export default async function AttendancePage() {
           <FacultyAttendanceManager classes={classes} />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {classes.map((classItem) => (
+            {activeClasses.map((classItem) => (
               <QrGeneratorCard
                 key={classItem.id}
                 classId={classItem.id}
@@ -77,6 +83,14 @@ export default async function AttendancePage() {
                 initialExpiry={classItem.qr_expires_at}
               />
             ))}
+
+            {!activeClasses.length && (
+              <Card>
+                <CardContent className="text-muted-foreground py-6 text-sm">
+                  No active QR sessions. Expired sessions are hidden automatically.
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {!classes.length && (
@@ -89,7 +103,7 @@ export default async function AttendancePage() {
         </div>
       )}
 
-      <AttendanceTable logs={logs} />
+      <AttendanceTable logs={logs} role={profile.role} />
     </div>
   );
 }
