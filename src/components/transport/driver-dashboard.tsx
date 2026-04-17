@@ -18,6 +18,11 @@ type DriverDashboardProps = {
   initialAssignedBus: Bus | null;
 };
 
+const STATIC_BUS_OPTIONS = [
+  { value: "ps01", label: "PS01" },
+  { value: "ps02", label: "PS02" },
+];
+
 export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDashboardProps) {
   const { buses, setBuses } = useRealtimeBuses(initialBuses);
   const [busId, setBusId] = useState(initialAssignedBus?.id ?? initialBuses[0]?.id ?? "");
@@ -102,8 +107,6 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
       return;
     }
 
-    syncDriverSession();
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         syncDriverSession({
@@ -157,6 +160,11 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
     };
   }, []);
 
+  const busOptions = [
+    ...STATIC_BUS_OPTIONS,
+    ...buses.map((bus) => ({ value: bus.id, label: bus.name })),
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -171,6 +179,7 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
               id="driver-bus"
               value={busId}
               onChange={(event) => setBusId(event.target.value)}
+<<<<<<< HEAD
               disabled={buses.length === 0}
               options={
                 buses.length > 0
@@ -196,6 +205,9 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
                 { value: "PS03", label: "PS03" },
                 { value: "PS04", label: "PS04" },
               ]}
+=======
+              options={busOptions}
+>>>>>>> 3bed26c654547ec096ed680b36e6f06276d7137b
             />
           </div>
 
@@ -279,7 +291,7 @@ export function DriverDashboard({ initialBuses, initialAssignedBus }: DriverDash
           <p>3. Start live location sharing while driving to keep ETA accurate for everyone.</p>
           <p className="inline-flex items-center gap-2">
             <LocateFixed className="size-4" />
-            Keep browser tab open for continuous live tracking.
+            Keep browser tab open for continuouslive tracking.
           </p>
         </CardContent>
       </Card>
