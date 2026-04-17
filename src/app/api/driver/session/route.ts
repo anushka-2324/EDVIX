@@ -6,6 +6,7 @@ import { getBuses, getDriverAssignedBus, upsertDriverBusSession } from "@/servic
 
 const schema = z.object({
   bus_id: z.string().uuid(),
+  bus_number: z.enum(["PS01", "PS02", "PS03", "PS04"]),
   pickup_area: z.string().min(2).max(120),
   pickup_source: z.enum(["college", "school"]),
   lat: z.number().min(-90).max(90).optional(),
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
     const data = await upsertDriverBusSession(auth.supabase, {
       driverId: auth.user.id,
       busId: parsed.data.bus_id,
+      busNumber: parsed.data.bus_number,
       pickupArea: parsed.data.pickup_area,
       pickupSource: parsed.data.pickup_source,
       lat: parsed.data.lat,

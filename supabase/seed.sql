@@ -8,13 +8,14 @@ values
   ('MA205 - Probability & Stats', 'Probability & Statistics', 'Bayes Theorem', 'MA20-PSTA-BAYES-MN34OP', now(), now() + interval '45 minutes', true)
 on conflict do nothing;
 
-insert into public.buses (name, lat, lng, pickup_area, pickup_source, updated_at)
+insert into public.buses (name, bus_number, lat, lng, pickup_area, pickup_source, updated_at)
 values
-  ('Route A - North Gate', 12.9732, 77.5941, 'North Gate', 'college', now()),
-  ('Route B - City Center', 12.9708, 77.5960, 'City Center', 'school', now()),
-  ('Route C - Metro Shuttle', 12.9699, 77.5932, 'Metro Junction', 'college', now())
+  ('Route A - North Gate', 'PS01', 12.9732, 77.5941, 'North Gate', 'college', now()),
+  ('Route B - City Center', 'PS02', 12.9708, 77.5960, 'City Center', 'school', now()),
+  ('Route C - Metro Shuttle', 'PS03', 12.9699, 77.5932, 'Metro Junction', 'college', now())
 on conflict (name) do update
-set lat = excluded.lat,
+set bus_number = excluded.bus_number,
+    lat = excluded.lat,
     lng = excluded.lng,
     pickup_area = excluded.pickup_area,
     pickup_source = excluded.pickup_source,

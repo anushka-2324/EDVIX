@@ -85,6 +85,7 @@ create table if not exists public.parking_availability (
 create table if not exists public.buses (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
+  bus_number text check (bus_number in ('PS01', 'PS02', 'PS03', 'PS04')),
   lat double precision not null,
   lng double precision not null,
   pickup_area text,
@@ -99,6 +100,10 @@ alter table public.buses drop constraint if exists buses_pickup_source_check;
 alter table public.buses add constraint buses_pickup_source_check
 check (pickup_source in ('college', 'school'));
 alter table public.buses add column if not exists driver_id uuid references public.users(id) on delete set null;
+alter table public.buses add column if not exists bus_number text;
+alter table public.buses drop constraint if exists buses_bus_number_check;
+alter table public.buses add constraint buses_bus_number_check
+check (bus_number in ('PS01', 'PS02', 'PS03', 'PS04'));
 
 create table if not exists public.transport_preferences (
   user_id uuid primary key references public.users(id) on delete cascade,
@@ -426,3 +431,15 @@ drop policy if exists "issue_images_authenticated_upload" on storage.objects;
 create policy "issue_images_authenticated_upload"
 on storage.objects for insert
 with check (bucket_id = 'issue-images' and auth.uid() is not null);
+
+-- Enable Realtime for specific tables (Required for live updates in student QR, bus maps, and parking)
+begin;
+  drop publication if exists supabase_realtime;
+  create publication supabase_realtime;
+commit;
+
+alter publication supabase_realtime add table public.classes;
+alter publication supabase_realtime add table public.buses;
+alter publication supabase_realtime add table public.parking_availability;
+alter publication supabase_realtime add table public.alerts;
+alter publication supabase_realtime add table public.issues;

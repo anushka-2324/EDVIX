@@ -142,7 +142,10 @@ export function BusTracker({ initialBuses, role, initialPreference }: BusTracker
               onChange={(event) => setPreferredBusId(event.target.value)}
               options={[
                 { value: "", label: "All buses" },
-                ...buses.map((bus) => ({ value: bus.id, label: bus.name })),
+                ...buses.map((bus) => ({ 
+                  value: bus.id, 
+                  label: bus.bus_number ? `${bus.name} (Vehicle: ${bus.bus_number})` : bus.name 
+                })),
               ]}
             />
           </div>
