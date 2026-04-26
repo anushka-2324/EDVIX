@@ -11,7 +11,7 @@ export default async function ParkingPage() {
       <div>
         <h1 className="text-2xl font-semibold">Smart Parking Monitor</h1>
         <p className="text-muted-foreground text-sm">
-          Track campus parking occupancy live and optimize slot usage in peak hours.
+          Track live utilization for Cars (10) and 2-Wheelers (20) and reserve slots in real time.
         </p>
       </div>
 

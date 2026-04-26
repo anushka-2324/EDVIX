@@ -74,14 +74,20 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Parking Available</CardDescription>
+            <CardDescription>Parking Utilization</CardDescription>
             <CardTitle className="text-2xl">
-              {summary.parking.available}/{summary.parking.total}
+              {summary.parking.occupied}/{summary.parking.total}
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-2">
-            <CarFront className="text-primary size-4" />
-            <span className="text-muted-foreground text-xs">{summary.parking.utilizationPercent}% occupied</span>
+          <CardContent className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CarFront className="text-primary size-4" />
+              <span className="text-muted-foreground text-xs">{summary.parking.utilizationPercent}% occupied</span>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Cars {summary.parking.byVehicle.car.occupied}/{summary.parking.byVehicle.car.total} · 2W{" "}
+              {summary.parking.byVehicle.twoWheeler.occupied}/{summary.parking.byVehicle.twoWheeler.total}
+            </p>
           </CardContent>
         </Card>
 

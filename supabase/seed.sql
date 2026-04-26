@@ -23,9 +23,8 @@ set bus_number = excluded.bus_number,
 
 insert into public.parking_availability (zone, total_slots, occupied_slots, updated_at)
 values
-  ('Main Gate Parking', 120, 78, now()),
-  ('Library Parking', 80, 52, now()),
-  ('Hostel Parking', 60, 35, now())
+  ('Car Parking', 10, 0, now()),
+  ('2-Wheeler Parking', 20, 0, now())
 on conflict (zone) do update
 set total_slots = excluded.total_slots,
     occupied_slots = excluded.occupied_slots,

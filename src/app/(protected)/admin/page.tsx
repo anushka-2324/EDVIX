@@ -49,10 +49,16 @@ export default async function AdminPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Parking Utilization</CardDescription>
-            <CardTitle className="text-2xl">{summary.parking.utilizationPercent}%</CardTitle>
+            <CardTitle className="text-2xl">
+              {summary.parking.occupied}/{summary.parking.total}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-xs">
-            {summary.parking.available}/{summary.parking.total} slots free across zones
+          <CardContent className="text-muted-foreground space-y-1 text-xs">
+            <p>{summary.parking.utilizationPercent}% occupied overall</p>
+            <p>
+              Cars {summary.parking.byVehicle.car.occupied}/{summary.parking.byVehicle.car.total} · 2W{" "}
+              {summary.parking.byVehicle.twoWheeler.occupied}/{summary.parking.byVehicle.twoWheeler.total}
+            </p>
           </CardContent>
         </Card>
 

@@ -1,6 +1,7 @@
 import { subDays } from "date-fns";
 import { type ParkingAvailabilitySummary, type UserRole } from "@/lib/types";
 import { isMissingTableError, isStatementTimeoutError, toDbError } from "@/lib/supabase/errors";
+import { getParkingLots, getParkingSummary } from "@/services/parking";
 
 type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createServerSupabaseClient>>;
 
@@ -64,40 +65,16 @@ export async function getDashboardSummary(supabase: SupabaseClient, userId: stri
 export async function getParkingAvailabilitySummary(
   supabase: SupabaseClient
 ): Promise<ParkingAvailabilitySummary> {
-  const { data, error } = await supabase
-    .from("parking_availability")
-    .select("total_slots, occupied_slots");
-
-  if (error) {
+  try {
+    const lots = await getParkingLots(supabase);
+    return getParkingSummary(lots);
+  } catch (error) {
     if (isMissingTableError(error, "parking_availability") || isStatementTimeoutError(error)) {
-      return {
-        total: 0,
-        occupied: 0,
-        available: 0,
-        utilizationPercent: 0,
-      };
+      return getParkingSummary([]);
     }
 
     throw toDbError(error, "Unable to load parking availability", "parking_availability");
   }
-
-  const { total, occupied } = (data ?? []).reduce(
-    (acc, row) => {
-      acc.total += row.total_slots ?? 0;
-      acc.occupied += row.occupied_slots ?? 0;
-      return acc;
-    },
-    { total: 0, occupied: 0 }
-  );
-
-  const available = Math.max(0, total - occupied);
-
-  return {
-    total,
-    occupied,
-    available,
-    utilizationPercent: total > 0 ? Math.round((occupied / total) * 100) : 0,
-  };
 }
 
 export async function getAttendanceByClass(supabase: SupabaseClient) {

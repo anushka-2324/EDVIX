@@ -103,11 +103,26 @@ export type ParkingLot = {
   updated_at: string;
 };
 
+export type ParkingVehicleType = "car" | "twoWheeler";
+
+export type ParkingVehicleSummary = {
+  type: ParkingVehicleType;
+  label: string;
+  total: number;
+  occupied: number;
+  available: number;
+  utilizationPercent: number;
+};
+
 export type ParkingAvailabilitySummary = {
   total: number;
   occupied: number;
   available: number;
   utilizationPercent: number;
+  byVehicle: {
+    car: ParkingVehicleSummary;
+    twoWheeler: ParkingVehicleSummary;
+  };
 };
 
 export type CampusLocation = {

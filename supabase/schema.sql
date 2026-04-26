@@ -356,6 +356,11 @@ on public.parking_availability for update
 using (public.current_user_role() in ('faculty', 'admin'))
 with check (public.current_user_role() in ('faculty', 'admin'));
 
+drop policy if exists "parking_insert_staff" on public.parking_availability;
+create policy "parking_insert_staff"
+on public.parking_availability for insert
+with check (public.current_user_role() in ('faculty', 'admin'));
+
 -- Alerts policies
 drop policy if exists "alerts_read_authenticated" on public.alerts;
 create policy "alerts_read_authenticated"
